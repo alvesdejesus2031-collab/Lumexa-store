@@ -1,9 +1,5 @@
-async function api(url,opt={}){const r=await fetch(url,opt);if(r.status===401){location.href="/";throw Error("Sessão expirada")}const d=await r.json();if(!r.ok)throw Error(d.error||"Erro");return d}
-async function csrf(){return (await api("/api/csrf")).csrfToken}
-async function load(){await api("/api/me");let p=await api("/api/products");list.innerHTML=p.map(x=>`<article class="card"><div class="body"><span class="badge">${esc(x.category)}</span><h3>${esc(x.name)}</h3><div>${fmt(x.price)}</div><p>${x.available?"Disponível":"Indisponível"}</p><button onclick='edit(${JSON.stringify(x)})'>Editar</button> <button onclick='del(${x.id})'>Eliminar</button></div></article>`).join("");let o=await api("/api/orders");orders.innerHTML=o.map(x=>`<div class="card" style="padding:15px;margin:10px 0"><b>#${x.id} — ${esc(x.customer_name)}</b> · ${esc(x.customer_phone)} · ${fmt(x.total)}<br><small>${new Date(x.created_at).toLocaleString()}</small><pre>${esc(JSON.stringify(JSON.parse(x.items_json),null,2))}</pre></div>`).join("")||"<p>Sem pedidos.</p>"}
-const fmt=n=>new Intl.NumberFormat("pt-AO").format(n)+" AOA";const esc=s=>String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
-function edit(x){id.value=x.id;name.value=x.name;category.value=x.category;price.value=x.price;image.value=x.image;description.value=x.description;available.checked=!!x.available;scrollTo(0,0)}
-function clearForm(){id.value="";name.value="";category.value="";price.value="";image.value="";description.value="";available.checked=true}
-clear.onclick=clearForm;save.onclick=async()=>{let t=await csrf(),body={name:name.value,category:category.value,price:Number(price.value),image:image.value,description:description.value,available:available.checked};let method=id.value?"PUT":"POST",url=id.value?"/api/products/"+id.value:"/api/products";await api(url,{method,headers:{"Content-Type":"application/json","CSRF-Token":t},body:JSON.stringify(body)});clearForm();load()};
-async function del(x){if(!confirm("Eliminar este produto?"))return;let t=await csrf();await api("/api/products/"+x,{method:"DELETE",headers:{"CSRF-Token":t}});load()}
-logout.onclick=async()=>{let t=await csrf();await api("/api/logout",{method:"POST",headers:{"CSRF-Token":t}});location.href="/"};load().catch(()=>location.href="/");
+let currentProducts = [];
+
+const idEl = document.getElementById("id");
+const nameEl = document.getElementById("name");
+const categoryEl = document.getElementById("category");
