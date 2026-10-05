@@ -1,500 +1,895 @@
 let products = [];
 let cart = [];
 
-const emailEl = document.getElementById("email");
-const passwordEl = document.getElementById("password");
-const codeEl = document.getElementById("code");
-const loginEl = document.getElementById("login");
-const loginMsgEl = document.getElementById("loginMsg");
-const modalEl = document.getElementById("modal");
-const adminBtnEl = document.getElementById("adminBtn");
-const customerNameEl = document.getElementById("customerName");
-const customerPhoneEl = document.getElementById("customerPhone");
+const SIZE_LABELS = {
+  shirt: "Tamanho",
+  pants: "Tamanho",
+  shoe: "Tamanho"
+};
 
-const fmt = n =>
-  new Intl.NumberFormat("pt-AO").format(n) + " AOA";
+const SIZE_NAMES = {
+  shirt: "Camisa",
+  pants: "Calça",
+  shoe: "Sapato"
+};
 
-async function api(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    credentials: "same-origin"
-  });
+const search = document.getElementById("search");
+const category = document.getElementById("cat");
+const productsContainer =
+  document.getElementById("products");
 
-  const text = await response.text();
+const cartElement =
+  document.getElementById("cart");
 
-  let data = {};
+const cartItems =
+  document.getElementById("cartItems");
 
+const totalElement =
+  document.getElementById("total");
+
+const customerName =
+  document.getElementById("customerName");
+
+const customerPhone =
+  document.getElementById("customerPhone");
+
+const orderButton =
+  document.getElementById("orderBtn");
+
+const closeCartButton =
+  document.getElementById("closeCart");
+
+const viewProductsButton =
+  document.getElementById("viewProducts");
+
+const adminButton =
+  document.getElementById("adminBtn");
+
+const modal =
+  document.getElementById("modal");
+
+const closeModalButton =
+  document.getElementById("closeModal");
+
+const loginButton =
+  document.getElementById("login");
+
+const emailInput =
+  document.getElementById("email");
+
+const passwordInput =
+  document.getElementById("password");
+
+const codeInput =
+  document.getElementById("code");
+
+const loginMessage =
+  document.getElementById("loginMsg");
+
+
+/* =========================
+   CARREGAR PRODUTOS
+========================= */
+
+async function loadProducts() {
   try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error("Resposta inválida do servidor.");
+    const response =
+      await fetch("/api/products");
+
+    if (!response.ok) {
+      throw new Error(
+        "Não foi possível carregar os produtos."
+      );
+    }
+
+    products =
+      await response.json();
+
+    populateCategories();
+    renderProducts();
+
+  } catch (error) {
+    productsContainer.innerHTML =
+      `<p>${error.message}</p>`;
   }
-
-  if (!response.ok) {
-    throw new Error(
-      data.error || `Erro ${response.status}`
-    );
-  }
-
-  return data;
 }
 
-async function getCsrfToken() {
-  const data = await api("/api/csrf");
-  return data.csrfToken;
-}
 
-async function load() {
-  products = await api("/api/products");
+/* =========================
+   CATEGORIAS
+========================= */
 
-  render();
-  cats();
-  updateCart();
-}
-
-function cats() {
+function populateCategories() {
   const categories = [
-    ...new Set(products.map(p => p.category))
+    ...new Set(
+      products
+        .map(product => product.category)
+        .filter(Boolean)
+    )
   ];
 
-  document.querySelector("#cat").innerHTML =
-    '<option value="">Todas as categorias</option>' +
-    categories
-      .map(
-        x =>
-          `<option value="${esc(x)}">${esc(x)}</option>`
-      )
-      .join("");
+  category.innerHTML =
+    '<option value="">Todas as categorias</option>';
+
+  categories.forEach(item => {
+    const option =
+      document.createElement("option");
+
+    option.value = item;
+    option.textContent = item;
+
+    category.appendChild(option);
+  });
 }
 
-function render() {
-  const q =
-    document
-      .querySelector("#search")
-      .value
+
+/* =========================
+   FILTRO
+========================= */
+
+function getFilteredProducts() {
+  const searchText =
+    search.value
+      .trim()
       .toLowerCase();
 
-  const cat =
-    document.querySelector("#cat").value;
+  const selectedCategory =
+    category.value;
 
-  document.querySelector("#products").innerHTML =
-    products
-      .filter(
-        p =>
-          (!cat || p.category === cat) &&
-          p.name.toLowerCase().includes(q)
-      )
-      .map(
-        p => `
-          <article class="card ${
-            p.available ? "" : "unavailable"
-          }">
+  return products.filter(product => {
+    const matchesSearch =
+      !searchText ||
+      product.name
+        .toLowerCase()
+        .includes(searchText) ||
+      String(product.description || "")
+        .toLowerCase()
+        .includes(searchText);
 
-            <div class="pic">
-              ${
-                p.image
-                  ? `<img
-                      src="${esc(p.image)}"
-                      alt="${esc(p.name)}"
-                    >`
-                  : "Sem imagem"
-              }
-            </div>
+    const matchesCategory =
+      !selectedCategory ||
+      product.category ===
+        selectedCategory;
 
-            <div class="body">
-
-              <span class="badge">
-                ${esc(p.category)}
-              </span>
-
-              <h3>${esc(p.name)}</h3>
-
-              <div>
-                ${esc(p.description || "")}
-              </div>
-
-              <div class="price">
-                ${fmt(p.price)}
-              </div>
-
-              ${
-                p.available
-                  ? `
-                    <button
-                      type="button"
-                      class="addProduct"
-                      data-id="${p.id}"
-                    >
-                      Adicionar ao pedido
-                    </button>
-                  `
-                  : `
-                    <span class="badge">
-                      Indisponível
-                    </span>
-                  `
-              }
-
-            </div>
-
-          </article>
-        `
-      )
-      .join("") ||
-    "<p>Nenhum produto encontrado.</p>";
+    return (
+      product.available &&
+      matchesSearch &&
+      matchesCategory
+    );
+  });
 }
 
-function esc(value) {
-  return String(value).replace(
-    /[&<>"']/g,
-    character =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#039;"
-      })[character]
-  );
+
+/* =========================
+   TAMANHOS
+========================= */
+
+function createSizeSelector(product) {
+  if (
+    !product.sizeType ||
+    !Array.isArray(product.sizes) ||
+    !product.sizes.length
+  ) {
+    return null;
+  }
+
+  const wrapper =
+    document.createElement("div");
+
+  wrapper.style.cssText = `
+    margin-top:12px;
+  `;
+
+  const label =
+    document.createElement("label");
+
+  label.textContent =
+    `${SIZE_NAMES[product.sizeType] || "Produto"} — tamanho:`;
+
+  label.style.cssText = `
+    display:block;
+    font-weight:600;
+    margin-bottom:6px;
+  `;
+
+  const select =
+    document.createElement("select");
+
+  select.className =
+    "product-size";
+
+  select.dataset.productId =
+    product.id;
+
+  select.style.cssText = `
+    width:100%;
+    padding:10px;
+    border:1px solid #ddd;
+    border-radius:10px;
+    background:white;
+  `;
+
+  const firstOption =
+    document.createElement("option");
+
+  firstOption.value = "";
+  firstOption.textContent =
+    "Escolher tamanho";
+
+  select.appendChild(firstOption);
+
+  product.sizes.forEach(size => {
+    const option =
+      document.createElement("option");
+
+    option.value = size;
+    option.textContent = size;
+
+    select.appendChild(option);
+  });
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(select);
+
+  return wrapper;
 }
 
-function add(id) {
-  const product = products.find(
-    p => p.id === Number(id)
-  );
 
-  if (!product || !product.available) {
+/* =========================
+   MOSTRAR PRODUTOS
+========================= */
+
+function renderProducts() {
+  productsContainer.innerHTML = "";
+
+  const filtered =
+    getFilteredProducts();
+
+  if (!filtered.length) {
+    productsContainer.innerHTML =
+      "<p>Nenhum produto encontrado.</p>";
+
     return;
   }
 
-  const item = cart.find(
-    x => x.id === Number(id)
-  );
+  filtered.forEach(product => {
+    const card =
+      document.createElement("article");
 
-  if (item) {
-    item.qty++;
+    card.className = "panel";
+
+    if (product.image) {
+      const image =
+        document.createElement("img");
+
+      image.src = product.image;
+      image.alt = product.name;
+
+      image.style.cssText = `
+        width:100%;
+        height:240px;
+        object-fit:cover;
+        border-radius:14px;
+        margin-bottom:12px;
+      `;
+
+      card.appendChild(image);
+    }
+
+    const title =
+      document.createElement("h3");
+
+    title.textContent =
+      product.name;
+
+    card.appendChild(title);
+
+    const categoryText =
+      document.createElement("p");
+
+    categoryText.textContent =
+      product.category;
+
+    card.appendChild(categoryText);
+
+    if (product.description) {
+      const description =
+        document.createElement("p");
+
+      description.textContent =
+        product.description;
+
+      card.appendChild(description);
+    }
+
+    const price =
+      document.createElement("strong");
+
+    price.textContent =
+      `${Number(product.price).toLocaleString("pt-AO")} AOA`;
+
+    price.style.display = "block";
+    price.style.margin = "10px 0";
+
+    card.appendChild(price);
+
+    const sizeSelector =
+      createSizeSelector(product);
+
+    if (sizeSelector) {
+      card.appendChild(sizeSelector);
+    }
+
+    const addButton =
+      document.createElement("button");
+
+    addButton.type = "button";
+    addButton.textContent =
+      "Adicionar ao pedido";
+
+    addButton.dataset.action =
+      "add-cart";
+
+    addButton.dataset.id =
+      product.id;
+
+    addButton.style.marginTop =
+      "12px";
+
+    card.appendChild(addButton);
+
+    productsContainer.appendChild(card);
+  });
+}
+
+
+/* =========================
+   ADICIONAR AO CARRINHO
+========================= */
+
+function addToCart(productId, size) {
+  const product =
+    products.find(
+      item =>
+        Number(item.id) ===
+        Number(productId)
+    );
+
+  if (!product) {
+    return;
+  }
+
+  const hasSizes =
+    product.sizeType &&
+    Array.isArray(product.sizes) &&
+    product.sizes.length > 0;
+
+  if (hasSizes && !size) {
+    alert(
+      "Escolha um tamanho antes de adicionar o produto."
+    );
+
+    return;
+  }
+
+  const existing =
+    cart.find(item =>
+      Number(item.id) ===
+        Number(product.id) &&
+      item.size === (size || "")
+    );
+
+  if (existing) {
+    existing.qty += 1;
   } else {
     cart.push({
-      id: Number(id),
-      qty: 1
+      id: product.id,
+      name: product.name,
+      price: Number(product.price),
+      qty: 1,
+      size: size || ""
     });
   }
 
-  updateCart();
-  toggleCart(true);
+  renderCart();
+
+  cartElement.classList.add("open");
 }
 
-function updateCart() {
-  const cartItemsEl =
-    document.querySelector("#cartItems");
 
-  if (!cartItemsEl) {
-    return;
-  }
+/* =========================
+   EVENTOS DOS PRODUTOS
+========================= */
 
-  cartItemsEl.innerHTML =
-    cart
-      .map(item => {
-        const product = products.find(
-          p => p.id === item.id
-        );
-
-        if (!product) {
-          return "";
-        }
-
-        return `
-          <div class="cartItem">
-
-            <span>
-              ${esc(product.name)} × ${item.qty}
-            </span>
-
-            <b>
-              ${fmt(product.price * item.qty)}
-            </b>
-
-          </div>
-        `;
-      })
-      .join("") ||
-    "<p>O carrinho está vazio.</p>";
-
-  const total = cart.reduce(
-    (sum, item) => {
-      const product = products.find(
-        p => p.id === item.id
-      );
-
-      return product
-        ? sum + product.price * item.qty
-        : sum;
-    },
-    0
-  );
-
-  const totalEl =
-    document.querySelector("#total");
-
-  if (totalEl) {
-    totalEl.textContent = fmt(total);
-  }
-}
-
-function toggleCart(force) {
-  const cartEl =
-    document.querySelector("#cart");
-
-  if (!cartEl) {
-    return;
-  }
-
-  cartEl.classList.toggle(
-    "open",
-    force !== undefined
-      ? force
-      : !cartEl.classList.contains("open")
-  );
-}
-
-/* PESQUISA */
-
-document
-  .querySelector("#search")
-  .addEventListener(
-    "input",
-    render
-  );
-
-document
-  .querySelector("#cat")
-  .addEventListener(
-    "change",
-    render
-  );
-
-/* ADICIONAR PRODUTO */
-
-document
-  .querySelector("#products")
-  .addEventListener(
-    "click",
-    event => {
-
-      const button =
-        event.target.closest(".addProduct");
-
-      if (!button) {
-        return;
-      }
-
-      add(
-        Number(button.dataset.id)
-      );
-    }
-  );
-
-/* FECHAR CARRINHO */
-
-const cartCloseButton =
-  document.querySelector(
-    "#closeCart"
-  );
-
-if (cartCloseButton) {
-  cartCloseButton.addEventListener(
-    "click",
-    () => {
-      toggleCart(false);
-    }
-  );
-}
-
-/* ENVIAR PEDIDO */
-
-document
-  .querySelector("#orderBtn")
-  .addEventListener(
-    "click",
-    async () => {
-
-      try {
-
-        if (!cart.length) {
-          throw new Error(
-            "Adicione produtos ao pedido."
-          );
-        }
-
-        if (
-          !customerNameEl.value.trim()
-        ) {
-          throw new Error(
-            "Digite o seu nome."
-          );
-        }
-
-        if (
-          !customerPhoneEl.value.trim()
-        ) {
-          throw new Error(
-            "Digite o seu telefone."
-          );
-        }
-
-        const data =
-          await api(
-            "/api/orders",
-            {
-              method: "POST",
-
-              headers: {
-                "Content-Type":
-                  "application/json"
-              },
-
-              body: JSON.stringify({
-                customerName:
-                  customerNameEl.value.trim(),
-
-                customerPhone:
-                  customerPhoneEl.value.trim(),
-
-                items: cart
-              })
-            }
-          );
-
-        location.href =
-          data.whatsappUrl;
-
-      } catch (error) {
-
-        alert(error.message);
-
-      }
-    }
-  );
-
-/* ABRIR ADMINISTRADOR */
-
-adminBtnEl.addEventListener(
+productsContainer.addEventListener(
   "click",
-  () => {
+  event => {
+    const button =
+      event.target.closest(
+        'button[data-action="add-cart"]'
+      );
 
-    modalEl.classList.remove(
-      "hidden"
+    if (!button) {
+      return;
+    }
+
+    const productId =
+      Number(button.dataset.id);
+
+    const card =
+      button.closest(".panel");
+
+    const sizeSelect =
+      card
+        ? card.querySelector(
+            ".product-size"
+          )
+        : null;
+
+    const size =
+      sizeSelect
+        ? sizeSelect.value
+        : "";
+
+    addToCart(
+      productId,
+      size
     );
-
-    loginMsgEl.textContent = "";
   }
 );
 
-/* FECHAR ADMINISTRADOR PELO X */
 
-const closeModalButton =
-  document.querySelector(
-    "#closeModal"
-  );
+/* =========================
+   CARRINHO
+========================= */
 
-if (closeModalButton) {
+function renderCart() {
+  cartItems.innerHTML = "";
 
-  closeModalButton.addEventListener(
-    "click",
-    () => {
+  if (!cart.length) {
+    cartItems.innerHTML =
+      "<p>O seu pedido está vazio.</p>";
 
-      modalEl.classList.add(
-        "hidden"
+    totalElement.textContent =
+      "Total: 0 AOA";
+
+    return;
+  }
+
+  let total = 0;
+
+  cart.forEach((item, index) => {
+    const row =
+      document.createElement("div");
+
+    row.style.cssText = `
+      padding:12px 0;
+      border-bottom:1px solid #eee;
+    `;
+
+    const name =
+      document.createElement("strong");
+
+    let itemName =
+      `${item.name} × ${item.qty}`;
+
+    if (item.size) {
+      itemName +=
+        ` — Tamanho: ${item.size}`;
+    }
+
+    name.textContent =
+      itemName;
+
+    row.appendChild(name);
+
+    const subtotal =
+      item.price * item.qty;
+
+    total += subtotal;
+
+    const price =
+      document.createElement("p");
+
+    price.textContent =
+      `${Number(subtotal).toLocaleString("pt-AO")} AOA`;
+
+    row.appendChild(price);
+
+    const controls =
+      document.createElement("div");
+
+    controls.style.cssText = `
+      display:flex;
+      gap:8px;
+      align-items:center;
+    `;
+
+    const minus =
+      document.createElement("button");
+
+    minus.type = "button";
+    minus.textContent = "−";
+    minus.dataset.cartAction =
+      "minus";
+    minus.dataset.index = index;
+
+    const quantity =
+      document.createElement("span");
+
+    quantity.textContent =
+      String(item.qty);
+
+    const plus =
+      document.createElement("button");
+
+    plus.type = "button";
+    plus.textContent = "+";
+    plus.dataset.cartAction =
+      "plus";
+    plus.dataset.index = index;
+
+    const remove =
+      document.createElement("button");
+
+    remove.type = "button";
+    remove.textContent =
+      "Remover";
+    remove.dataset.cartAction =
+      "remove";
+    remove.dataset.index = index;
+
+    remove.className =
+      "ghost";
+
+    controls.appendChild(minus);
+    controls.appendChild(quantity);
+    controls.appendChild(plus);
+    controls.appendChild(remove);
+
+    row.appendChild(controls);
+
+    cartItems.appendChild(row);
+  });
+
+  totalElement.textContent =
+    `Total: ${Number(total).toLocaleString("pt-AO")} AOA`;
+}
+
+
+/* =========================
+   CONTROLOS DO CARRINHO
+========================= */
+
+cartItems.addEventListener(
+  "click",
+  event => {
+    const button =
+      event.target.closest(
+        "button[data-cart-action]"
       );
 
-      emailEl.value = "";
-      passwordEl.value = "";
-      codeEl.value = "";
-      loginMsgEl.textContent = "";
+    if (!button) {
+      return;
     }
-  );
-}
 
-/* VER PRODUTOS */
+    const index =
+      Number(button.dataset.index);
 
-const viewProductsButton =
-  document.querySelector(
-    "#viewProducts"
-  );
-
-if (viewProductsButton) {
-
-  viewProductsButton.addEventListener(
-    "click",
-    () => {
-
-      document
-        .querySelector("#products")
-        .scrollIntoView({
-          behavior: "smooth"
-        });
+    if (!cart[index]) {
+      return;
     }
-  );
-}
 
-/* LOGIN DO ADMINISTRADOR */
+    const action =
+      button.dataset.cartAction;
 
-loginEl.addEventListener(
+    if (action === "plus") {
+      cart[index].qty += 1;
+    }
+
+    if (action === "minus") {
+      cart[index].qty -= 1;
+
+      if (cart[index].qty <= 0) {
+        cart.splice(index, 1);
+      }
+    }
+
+    if (action === "remove") {
+      cart.splice(index, 1);
+    }
+
+    renderCart();
+  }
+);
+
+
+/* =========================
+   FECHAR CARRINHO
+========================= */
+
+closeCartButton.addEventListener(
+  "click",
+  () => {
+    cartElement.classList.remove(
+      "open"
+    );
+  }
+);
+
+
+/* =========================
+   VER PRODUTOS
+========================= */
+
+viewProductsButton.addEventListener(
+  "click",
+  () => {
+    document
+      .getElementById("products")
+      .scrollIntoView({
+        behavior: "smooth"
+      });
+  }
+);
+
+
+/* =========================
+   PESQUISA / CATEGORIA
+========================= */
+
+search.addEventListener(
+  "input",
+  renderProducts
+);
+
+category.addEventListener(
+  "change",
+  renderProducts
+);
+
+
+/* =========================
+   ADMIN
+========================= */
+
+adminButton.addEventListener(
+  "click",
+  () => {
+    modal.classList.remove("hidden");
+
+    emailInput.focus();
+  }
+);
+
+closeModalButton.addEventListener(
+  "click",
+  () => {
+    modal.classList.add("hidden");
+  }
+);
+
+modal.addEventListener(
+  "click",
+  event => {
+    if (event.target === modal) {
+      modal.classList.add("hidden");
+    }
+  }
+);
+
+
+/* =========================
+   LOGIN ADMIN
+========================= */
+
+loginButton.addEventListener(
   "click",
   async () => {
-
-    loginMsgEl.textContent =
+    loginMessage.textContent =
       "A entrar...";
 
     try {
+      const csrfResponse =
+        await fetch("/api/csrf");
 
-      const csrfToken =
-        await getCsrfToken();
+      const csrfData =
+        await csrfResponse.json();
 
-      await api(
-        "/api/login",
-        {
+      const response =
+        await fetch("/api/login", {
           method: "POST",
 
           headers: {
             "Content-Type":
               "application/json",
 
-            "X-CSRF-Token":
-              csrfToken
+            "CSRF-Token":
+              csrfData.csrfToken
           },
 
           body: JSON.stringify({
-
             email:
-              emailEl.value.trim(),
+              emailInput.value,
 
             password:
-              passwordEl.value,
+              passwordInput.value,
 
             code:
-              codeEl.value.trim()
-
+              codeInput.value
           })
-        }
-      );
+        });
 
-      location.href =
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+          "Não foi possível entrar."
+        );
+      }
+
+      window.location.href =
         "/admin.html";
 
     } catch (error) {
-
-      loginMsgEl.textContent =
+      loginMessage.textContent =
         error.message;
-
     }
   }
 );
 
-/* CARREGAR LOJA */
 
-load().catch(
-  error => {
-    console.error(error);
+/* =========================
+   ENTER NO LOGIN
+========================= */
+
+[
+  emailInput,
+  passwordInput,
+  codeInput
+].forEach(input => {
+  input.addEventListener(
+    "keydown",
+    event => {
+      if (event.key === "Enter") {
+        loginButton.click();
+      }
+    }
+  );
+});
+
+
+/* =========================
+   ENVIAR PEDIDO
+========================= */
+
+orderButton.addEventListener(
+  "click",
+  async () => {
+    if (!cart.length) {
+      alert(
+        "Adicione pelo menos um produto."
+      );
+
+      return;
+    }
+
+    const name =
+      customerName.value.trim();
+
+    const phone =
+      customerPhone.value.trim();
+
+    if (!name) {
+      alert(
+        "Digite o seu nome."
+      );
+
+      customerName.focus();
+
+      return;
+    }
+
+    if (!phone) {
+      alert(
+        "Digite o seu telefone."
+      );
+
+      customerPhone.focus();
+
+      return;
+    }
+
+    const invalidSize =
+      cart.find(item => {
+        const product =
+          products.find(
+            p =>
+              Number(p.id) ===
+              Number(item.id)
+          );
+
+        return (
+          product &&
+          product.sizeType &&
+          Array.isArray(product.sizes) &&
+          product.sizes.length &&
+          !item.size
+        );
+      });
+
+    if (invalidSize) {
+      alert(
+        `Escolha o tamanho de "${invalidSize.name}".`
+      );
+
+      return;
+    }
+
+    orderButton.disabled = true;
+    orderButton.textContent =
+      "A preparar pedido...";
+
+    try {
+      const response =
+        await fetch("/api/orders", {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+            customerName: name,
+            customerPhone: phone,
+
+            items: cart.map(item => ({
+              id: item.id,
+              qty: item.qty,
+              size: item.size || ""
+            }))
+          })
+        });
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+          "Não foi possível criar o pedido."
+        );
+      }
+
+      cart = [];
+
+      renderCart();
+
+      window.open(
+        data.whatsappUrl,
+        "_blank"
+      );
+
+    } catch (error) {
+      alert(error.message);
+
+    } finally {
+      orderButton.disabled = false;
+
+      orderButton.textContent =
+        "Enviar pedido pelo WhatsApp";
+    }
   }
 );
+
+
+/* =========================
+   INICIALIZAÇÃO
+========================= */
+
+renderCart();
+
+loadProducts();
