@@ -1,3 +1,8 @@
+// ======================================================
+// LUMEXA STORE — ADMIN.JS
+// Compatível com o admin.html e server.js atuais
+// ======================================================
+
 const SIZE_OPTIONS = {
   "": [],
   shirt: ["S", "M", "L", "XL", "XXL"],
@@ -6,24 +11,35 @@ const SIZE_OPTIONS = {
 };
 
 let csrfToken = "";
+let editingProductId = null;
+
+// ======================================================
+// SEGURANÇA / API
+// ======================================================
 
 async function getCsrfToken() {
   const response = await fetch("/api/csrf", {
+    method: "GET",
     credentials: "same-origin"
   });
 
+  const data = await response.json().catch(() => ({}));
+
   if (!response.ok) {
-    throw new Error("Não foi possível obter o token de segurança.");
+    throw new Error(
+      data.error || "Não foi possível obter o token de segurança."
+    );
   }
 
-  const data = await response.json();
   csrfToken = data.csrfToken;
 
   return csrfToken;
 }
 
 async function api(url, options = {}) {
-  const method = (options.method || "GET").toUpperCase();
+  const method = (
+    options.method || "GET"
+  ).toUpperCase();
 
   const headers = {
     ...(options.headers || {})
@@ -41,12 +57,14 @@ async function api(url, options = {}) {
     credentials: "same-origin"
   });
 
+  const data = await response
+    .json()
+    .catch(() => ({}));
+
   if (response.status === 401) {
     window.location.href = "/";
-    return;
+    return null;
   }
-
-  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     throw new Error(
@@ -59,9 +77,9 @@ async function api(url, options = {}) {
   return data;
 }
 
-function formatMoney(value) {
-  return `${Number(value || 0).toLocaleString("pt-AO")} Kz`;
-}
+// ======================================================
+// FUNÇÕES AUXILIARES
+// ======================================================
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -72,499 +90,1107 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-function renderSizeOptions(selected = []) {
-  const typeElement = document.querySelector("#productType");
-  const sizesElement = document.querySelector("#productSizes");
+function formatMoney(value) {
+  return `${Number(value || 0).toLocaleString("pt-AO")} Kz`;
+}
 
-  if (!typeElement || !sizesElement) {
+// ======================================================
+// TAMANHOS
+// ======================================================
+
+function renderSizeOptions(selectedSizes = []) {
+  const sizeType =
+    document.getElementById("sizeType");
+
+  const sizesBox =
+    document.getElementById("sizesBox");
+
+  const sizeOptions =
+    document.getElementById("sizeOptions");
+
+  if (
+    !sizeType ||
+    !sizesBox ||
+    !sizeOptions
+  ) {
     return;
   }
 
-  const type = typeElement.value;
-  const sizes = SIZE_OPTIONS[type] || [];
+  const type = sizeType.value;
 
-  sizesElement.innerHTML = "";
+  const sizes =
+    SIZE_OPTIONS[type] || [];
+
+  sizeOptions.innerHTML = "";
 
   if (!sizes.length) {
-    sizesElement.innerHTML =
-      `<p class="muted">Este produto não utiliza tamanhos.</p>`;
+    sizesBox.classList.add("hidden");
     return;
   }
+
+  sizesBox.classList.remove("hidden");
 
   sizes.forEach((size) => {
-    const checked = selected.includes(size)
-      ? "checked"
-      : "";
+    const label =
+      document.createElement("label");
 
-    sizesElement.innerHTML += `
-      <label class="size-option">
-        <input
-          type="checkbox"
-          name="productSize"
-          value="${escapeHtml(size)}"
-          ${checked}
-        >
-        <span>${escapeHtml(size)}</span>
-      </label>
-    `;
-  });
-}
+    label.className = "sizeOption";
 
-async function loadProducts() {
-  const container =
-    document.querySelector("#productsList");
+    const checkbox =
+      document.createElement("input");
 
-  if (!container) {
-    return;
-  }
+    checkbox.type = "checkbox";
+    checkbox.value = size;
 
-  const data = await api("/api/admin/products");
+    checkbox.checked =
+      selectedSizes.includes(size);
 
-  const products = Array.isArray(data)
-    ? data
-    : data.products || [];
+    label.appendChild(checkbox);
 
-  if (!products.length) {
-    container.innerHTML =
-      `<p>Nenhum produto cadastrado.</p>`;
-    return;
-  }
+    const text =
+      document.createElement("span");
 
-  container.innerHTML = products.map((product) => {
-    const sizes = Array.isArray(product.sizes)
-      ? product.sizes
-      : [];
+    text.textContent = size;
 
-    return `
-      <div class="admin-product" data-id="${product.id}">
-        <div class="admin-product-image">
-          ${
-            product.image
-              ? `<img
-                  src="${escapeHtml(product.image)}"
-                  alt="${escapeHtml(product.name)}"
-                >`
-              : ""
-          }
-        </div>
+    label.appendChild(text);
 
-        <div class="admin-product-info">
-          <h3>${escapeHtml(product.name)}</h3>
-
-          <p>
-            <strong>${formatMoney(product.price)}</strong>
-          </p>
-
-          <p>
-            Tipo:
-            ${escapeHtml(product.type || "Sem tamanho")}
-          </p>
-
-          <p>
-            Disponibilidade:
-            ${
-              product.available
-                ? "Disponível"
-                : "Indisponível"
-            }
-          </p>
-
-          ${
-            sizes.length
-              ? `<p>Tamanhos: ${sizes
-                  .map(escapeHtml)
-                  .join(", ")}</p>`
-              : ""
-          }
-
-          ${
-            product.description
-              ? `<p>${escapeHtml(product.description)}</p>`
-              : ""
-          }
-        </div>
-
-        <div class="admin-product-actions">
-          <button
-            type="button"
-            onclick="editProduct(${product.id})"
-          >
-            Editar
-          </button>
-
-          <button
-            type="button"
-            onclick="deleteProduct(${product.id})"
-          >
-            Eliminar
-          </button>
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
-async function loadOrders() {
-  const container =
-    document.querySelector("#ordersList");
-
-  if (!container) {
-    return;
-  }
-
-  const data = await api("/api/admin/orders");
-
-  const orders = Array.isArray(data)
-    ? data
-    : data.orders || [];
-
-  if (!orders.length) {
-    container.innerHTML =
-      `<p>Nenhum pedido recebido.</p>`;
-    return;
-  }
-
-  container.innerHTML = orders.map((order) => {
-    let items = [];
-
-    try {
-      items = Array.isArray(order.items)
-        ? order.items
-        : JSON.parse(order.items || "[]");
-    } catch {
-      items = [];
-    }
-
-    const itemsHtml = items.map((item) => {
-      let text =
-        `${item.name} × ${item.quantity}`;
-
-      if (item.size) {
-        text += ` — Tamanho: ${item.size}`;
-      }
-
-      return `<li>${escapeHtml(text)}</li>`;
-    }).join("");
-
-    return `
-      <div class="admin-order">
-        <div class="admin-order-header">
-          <strong>
-            Pedido #${escapeHtml(order.id)}
-          </strong>
-
-          <span>
-            ${formatMoney(order.total)}
-          </span>
-        </div>
-
-        <p>
-          Cliente:
-          ${escapeHtml(
-            order.customer_name ||
-            order.name ||
-            "Não informado"
-          )}
-        </p>
-
-        <p>
-          Telefone:
-          ${escapeHtml(
-            order.phone ||
-            "Não informado"
-          )}
-        </p>
-
-        <p>
-          Data:
-          ${escapeHtml(
-            order.created_at ||
-            ""
-          )}
-        </p>
-
-        <ul>
-          ${itemsHtml}
-        </ul>
-      </div>
-    `;
-  }).join("");
-}
-
-async function deleteProduct(id) {
-  const confirmed = confirm(
-    "Tem certeza que deseja eliminar este produto?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  await api(`/api/admin/products/${id}`, {
-    method: "DELETE"
-  });
-
-  await getCsrfToken();
-  await loadProducts();
-}
-
-async function editProduct(id) {
-  const data = await api("/api/admin/products");
-  const products = Array.isArray(data)
-    ? data
-    : data.products || [];
-
-  const product = products.find(
-    (item) => Number(item.id) === Number(id)
-  );
-
-  if (!product) {
-    alert("Produto não encontrado.");
-    return;
-  }
-
-  const idElement =
-    document.querySelector("#productId");
-
-  const nameElement =
-    document.querySelector("#productName");
-
-  const priceElement =
-    document.querySelector("#productPrice");
-
-  const typeElement =
-    document.querySelector("#productType");
-
-  const descriptionElement =
-    document.querySelector("#productDescription");
-
-  const availableElement =
-    document.querySelector("#productAvailable");
-
-  const imageElement =
-    document.querySelector("#productImage");
-
-  if (idElement) {
-    idElement.value = product.id;
-  }
-
-  if (nameElement) {
-    nameElement.value = product.name || "";
-  }
-
-  if (priceElement) {
-    priceElement.value = product.price || "";
-  }
-
-  if (typeElement) {
-    typeElement.value = product.type || "";
-  }
-
-  if (descriptionElement) {
-    descriptionElement.value =
-      product.description || "";
-  }
-
-  if (availableElement) {
-    availableElement.checked =
-      Boolean(product.available);
-  }
-
-  if (imageElement) {
-    imageElement.value =
-      product.image || "";
-  }
-
-  renderSizeOptions(
-    Array.isArray(product.sizes)
-      ? product.sizes
-      : []
-  );
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
+    sizeOptions.appendChild(label);
   });
 }
 
 function getSelectedSizes() {
-  return Array.from(
+  const checkboxes =
     document.querySelectorAll(
-      'input[name="productSize"]:checked'
-    )
-  ).map((input) => input.value);
+      "#sizeOptions input[type='checkbox']:checked"
+    );
+
+  return Array.from(checkboxes)
+    .map((checkbox) => checkbox.value);
 }
 
-async function saveProduct(event) {
-  event.preventDefault();
+// ======================================================
+// IMAGEM
+// ======================================================
 
-  const id =
-    document.querySelector("#productId")?.value;
+function showImagePreview(image) {
+  const preview =
+    document.getElementById("imagePreview");
 
-  const name =
-    document.querySelector("#productName")?.value
-      .trim();
+  const imageInput =
+    document.getElementById("image");
 
-  const price =
-    document.querySelector("#productPrice")?.value;
-
-  const type =
-    document.querySelector("#productType")?.value || "";
-
-  const description =
-    document
-      .querySelector("#productDescription")
-      ?.value
-      .trim() || "";
-
-  const image =
-    document
-      .querySelector("#productImage")
-      ?.value
-      .trim() || "";
-
-  const available =
-    document
-      .querySelector("#productAvailable")
-      ?.checked ?? true;
-
-  const sizes = getSelectedSizes();
-
-  if (!name) {
-    alert("Digite o nome do produto.");
+  if (!preview) {
     return;
   }
 
-  if (!price || Number(price) < 0) {
-    alert("Digite um preço válido.");
-    return;
-  }
+  preview.innerHTML = "";
 
-  const payload = {
-    name,
-    price: Number(price),
-    type,
-    description,
-    image,
-    available,
-    sizes
-  };
-
-  if (id) {
-    await api(
-      `/api/admin/products/${id}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(payload)
-      }
-    );
-  } else {
-    await api(
-      "/api/admin/products",
-      {
-        method: "POST",
-        body: JSON.stringify(payload)
-      }
-    );
-  }
-
-  alert(
-    id
-      ? "Produto atualizado com sucesso!"
-      : "Produto criado com sucesso!"
-  );
-
-  const form =
-    document.querySelector("#productForm");
-
-  if (form) {
-    form.reset();
-  }
-
-  const idElement =
-    document.querySelector("#productId");
-
-  if (idElement) {
-    idElement.value = "";
-  }
-
-  renderSizeOptions([]);
-
-  await getCsrfToken();
-  await loadProducts();
-}
-
-async function logout() {
-  try {
-    await api("/api/logout", {
-      method: "POST"
-    });
-  } finally {
-    window.location.href = "/";
-  }
-}
-
-async function init() {
-  try {
-    await getCsrfToken();
-
-    const me = await api("/api/me");
-
-    /*
-     * IMPORTANTE:
-     * O servidor retorna "authenticated".
-     * Não usar "loggedIn" aqui.
-     */
-    if (!me.authenticated) {
-      window.location.href = "/";
-      return;
+  if (!image) {
+    if (imageInput) {
+      imageInput.value = "";
     }
 
-    renderSizeOptions([]);
+    return;
+  }
 
-    const typeElement =
-      document.querySelector("#productType");
+  if (imageInput) {
+    imageInput.value = image;
+  }
 
-    if (typeElement) {
-      typeElement.addEventListener(
-        "change",
-        () => {
-          renderSizeOptions([]);
+  const img =
+    document.createElement("img");
+
+  img.src = image;
+  img.alt = "Pré-visualização do produto";
+
+  img.style.maxWidth = "250px";
+  img.style.maxHeight = "250px";
+  img.style.objectFit = "contain";
+
+  preview.appendChild(img);
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader =
+      new FileReader();
+
+    reader.onload = () => {
+      const img =
+        new Image();
+
+      img.onload = () => {
+        const maxSize = 1200;
+
+        let width = img.width;
+        let height = img.height;
+
+        if (
+          width > maxSize ||
+          height > maxSize
+        ) {
+          const ratio =
+            Math.min(
+              maxSize / width,
+              maxSize / height
+            );
+
+          width =
+            Math.round(width * ratio);
+
+          height =
+            Math.round(height * ratio);
         }
+
+        const canvas =
+          document.createElement("canvas");
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const context =
+          canvas.getContext("2d");
+
+        context.drawImage(
+          img,
+          0,
+          0,
+          width,
+          height
+        );
+
+        const result =
+          canvas.toDataURL(
+            "image/jpeg",
+            0.82
+          );
+
+        resolve(result);
+      };
+
+      img.onerror = () => {
+        reject(
+          new Error(
+            "Não foi possível processar a imagem."
+          )
+        );
+      };
+
+      img.src = reader.result;
+    };
+
+    reader.onerror = () => {
+      reject(
+        new Error(
+          "Não foi possível ler a imagem."
+        )
       );
-    }
+    };
 
-    const form =
-      document.querySelector("#productForm");
+    reader.readAsDataURL(file);
+  });
+}
 
-    if (form) {
-      form.addEventListener(
-        "submit",
-        saveProduct
-      );
-    }
+async function handleImageChange(event) {
+  const file =
+    event.target.files?.[0];
 
-    const logoutButton =
-      document.querySelector("#logoutButton");
+  if (!file) {
+    return;
+  }
 
-    if (logoutButton) {
-      logoutButton.addEventListener(
-        "click",
-        logout
-      );
-    }
+  if (!file.type.startsWith("image/")) {
+    alert("Selecione uma imagem válida.");
+    event.target.value = "";
+    return;
+  }
 
-    await loadProducts();
-    await loadOrders();
+  try {
+    const image =
+      await compressImage(file);
+
+    showImagePreview(image);
 
   } catch (error) {
     console.error(error);
 
     alert(
-      error.message ||
-      "Ocorreu um erro."
+      "Não foi possível carregar a imagem."
     );
   }
 }
+
+// ======================================================
+// LIMPAR FORMULÁRIO
+// ======================================================
+
+function clearForm() {
+  const form =
+    document.getElementById("productForm");
+
+  if (form) {
+    form.reset();
+  }
+
+  editingProductId = null;
+
+  const productId =
+    document.getElementById("productId");
+
+  if (productId) {
+    productId.value = "";
+  }
+
+  const available =
+    document.getElementById("available");
+
+  if (available) {
+    available.checked = true;
+  }
+
+  const image =
+    document.getElementById("image");
+
+  if (image) {
+    image.value = "";
+  }
+
+  const imageFile =
+    document.getElementById("imageFile");
+
+  if (imageFile) {
+    imageFile.value = "";
+  }
+
+  const formTitle =
+    document.getElementById("formTitle");
+
+  if (formTitle) {
+    formTitle.textContent =
+      "Adicionar produto";
+  }
+
+  const saveBtn =
+    document.getElementById("saveBtn");
+
+  if (saveBtn) {
+    saveBtn.textContent =
+      "Guardar produto";
+  }
+
+  showImagePreview("");
+
+  renderSizeOptions([]);
+}
+
+// ======================================================
+// GUARDAR PRODUTO
+// ======================================================
+
+async function saveProduct(event) {
+  event.preventDefault();
+
+  const name =
+    document.getElementById("name")
+      ?.value
+      .trim();
+
+  const category =
+    document.getElementById("category")
+      ?.value
+      .trim();
+
+  const type =
+    document.getElementById("type")
+      ?.value
+      .trim() || "";
+
+  const priceValue =
+    document.getElementById("price")
+      ?.value;
+
+  const description =
+    document.getElementById("description")
+      ?.value
+      .trim() || "";
+
+  const image =
+    document.getElementById("image")
+      ?.value || "";
+
+  const available =
+    document.getElementById("available")
+      ?.checked ?? true;
+
+  const sizeType =
+    document.getElementById("sizeType")
+      ?.value || "";
+
+  const sizes =
+    getSelectedSizes();
+
+  // ====================================================
+  // VALIDAÇÃO
+  // ====================================================
+
+  if (!name) {
+    alert(
+      "Digite o nome do produto."
+    );
+
+    document.getElementById("name")?.focus();
+
+    return;
+  }
+
+  if (!category) {
+    alert(
+      "Digite a categoria do produto."
+    );
+
+    document
+      .getElementById("category")
+      ?.focus();
+
+    return;
+  }
+
+  if (
+    priceValue === "" ||
+    priceValue === null ||
+    priceValue === undefined ||
+    !Number.isFinite(Number(priceValue)) ||
+    Number(priceValue) < 0
+  ) {
+    alert(
+      "Digite um preço válido."
+    );
+
+    document
+      .getElementById("price")
+      ?.focus();
+
+    return;
+  }
+
+  if (
+    sizeType &&
+    sizes.length === 0
+  ) {
+    alert(
+      "Selecione pelo menos um tamanho."
+    );
+
+    return;
+  }
+
+  const payload = {
+    name,
+    category,
+    type,
+    price: Number(priceValue),
+    description,
+    image,
+    available,
+    sizeType,
+    sizes
+  };
+
+  try {
+    const id =
+      editingProductId ||
+      document.getElementById("productId")
+        ?.value;
+
+    let result;
+
+    if (id) {
+      result = await api(
+        `/api/products/${id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(payload)
+        }
+      );
+    } else {
+      result = await api(
+        "/api/products",
+        {
+          method: "POST",
+          body: JSON.stringify(payload)
+        }
+      );
+    }
+
+    if (!result) {
+      return;
+    }
+
+    alert(
+      id
+        ? "Produto atualizado com sucesso!"
+        : "Produto guardado com sucesso!"
+    );
+
+    clearForm();
+
+    await getCsrfToken();
+    await loadProducts();
+
+  } catch (error) {
+    console.error(
+      "Erro ao guardar produto:",
+      error
+    );
+
+    alert(
+      error.message ||
+      "Não foi possível guardar o produto."
+    );
+  }
+}
+
+// ======================================================
+// CARREGAR PRODUTOS
+// ======================================================
+
+async function loadProducts() {
+  const container =
+    document.getElementById("productsList");
+
+  if (!container) {
+    return;
+  }
+
+  try {
+    const data =
+      await api("/api/products");
+
+    if (!Array.isArray(data)) {
+      throw new Error(
+        "Formato de produtos inválido."
+      );
+    }
+
+    if (data.length === 0) {
+      container.innerHTML = `
+        <p class="muted">
+          Ainda não existem produtos.
+        </p>
+      `;
+
+      return;
+    }
+
+    container.innerHTML =
+      data.map((product) => {
+        const sizes =
+          Array.isArray(product.sizes)
+            ? product.sizes
+            : [];
+
+        return `
+          <article
+            class="adminCard"
+            data-id="${product.id}"
+          >
+
+            ${
+              product.image
+                ? `
+                  <img
+                    src="${escapeHtml(product.image)}"
+                    alt="${escapeHtml(product.name)}"
+                    class="adminProductImage"
+                  >
+                `
+                : ""
+            }
+
+            <div class="adminCardContent">
+
+              <h3>
+                ${escapeHtml(product.name)}
+              </h3>
+
+              <p>
+                <strong>
+                  ${formatMoney(product.price)}
+                </strong>
+              </p>
+
+              <p>
+                Categoria:
+                ${escapeHtml(product.category)}
+              </p>
+
+              ${
+                product.type
+                  ? `
+                    <p>
+                      Tipo:
+                      ${escapeHtml(product.type)}
+                    </p>
+                  `
+                  : ""
+              }
+
+              ${
+                product.description
+                  ? `
+                    <p>
+                      ${escapeHtml(
+                        product.description
+                      )}
+                    </p>
+                  `
+                  : ""
+              }
+
+              <p>
+                Estado:
+                ${
+                  product.available
+                    ? "Disponível"
+                    : "Indisponível"
+                }
+              </p>
+
+              ${
+                product.sizeType
+                  ? `
+                    <p>
+                      Tamanhos:
+                      ${
+                        sizes
+                          .map(escapeHtml)
+                          .join(", ")
+                      }
+                    </p>
+                  `
+                  : `
+                    <p>
+                      Sem tamanhos
+                    </p>
+                  `
+              }
+
+              <div class="formActions">
+
+                <button
+                  type="button"
+                  class="editProductBtn"
+                  data-id="${product.id}"
+                >
+                  Editar
+                </button>
+
+                <button
+                  type="button"
+                  class="deleteProductBtn"
+                  data-id="${product.id}"
+                >
+                  Eliminar
+                </button>
+
+              </div>
+
+            </div>
+
+          </article>
+        `;
+      }).join("");
+
+  } catch (error) {
+    console.error(
+      "Erro ao carregar produtos:",
+      error
+    );
+
+    container.innerHTML = `
+      <p>
+        Não foi possível carregar os produtos.
+      </p>
+    `;
+  }
+}
+
+// ======================================================
+// EDITAR PRODUTO
+// ======================================================
+
+async function editProduct(id) {
+  try {
+    const data =
+      await api("/api/products");
+
+    if (!Array.isArray(data)) {
+      throw new Error(
+        "Não foi possível carregar os produtos."
+      );
+    }
+
+    const product =
+      data.find(
+        (item) =>
+          Number(item.id) === Number(id)
+      );
+
+    if (!product) {
+      alert(
+        "Produto não encontrado."
+      );
+
+      return;
+    }
+
+    editingProductId =
+      product.id;
+
+    document.getElementById(
+      "productId"
+    ).value = product.id;
+
+    document.getElementById(
+      "name"
+    ).value = product.name || "";
+
+    document.getElementById(
+      "category"
+    ).value = product.category || "";
+
+    document.getElementById(
+      "type"
+    ).value = product.type || "";
+
+    document.getElementById(
+      "price"
+    ).value = product.price ?? "";
+
+    document.getElementById(
+      "description"
+    ).value =
+      product.description || "";
+
+    document.getElementById(
+      "available"
+    ).checked =
+      Boolean(product.available);
+
+    document.getElementById(
+      "image"
+    ).value =
+      product.image || "";
+
+    document.getElementById(
+      "sizeType"
+    ).value =
+      product.sizeType || "";
+
+    renderSizeOptions(
+      Array.isArray(product.sizes)
+        ? product.sizes
+        : []
+    );
+
+    showImagePreview(
+      product.image || ""
+    );
+
+    document.getElementById(
+      "formTitle"
+    ).textContent =
+      "Editar produto";
+
+    document.getElementById(
+      "saveBtn"
+    ).textContent =
+      "Atualizar produto";
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+
+  } catch (error) {
+    console.error(
+      "Erro ao editar:",
+      error
+    );
+
+    alert(
+      error.message ||
+      "Não foi possível editar o produto."
+    );
+  }
+}
+
+// ======================================================
+// ELIMINAR PRODUTO
+// ======================================================
+
+async function deleteProduct(id) {
+  const confirmed =
+    window.confirm(
+      "Tem certeza que deseja eliminar este produto?"
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await api(
+      `/api/products/${id}`,
+      {
+        method: "DELETE"
+      }
+    );
+
+    alert(
+      "Produto eliminado com sucesso!"
+    );
+
+    await getCsrfToken();
+    await loadProducts();
+
+  } catch (error) {
+    console.error(
+      "Erro ao eliminar:",
+      error
+    );
+
+    alert(
+      error.message ||
+      "Não foi possível eliminar o produto."
+    );
+  }
+}
+
+// ======================================================
+// PEDIDOS
+// ======================================================
+
+async function loadOrders() {
+  const container =
+    document.getElementById("ordersList");
+
+  if (!container) {
+    return;
+  }
+
+  try {
+    const data =
+      await api("/api/orders");
+
+    if (!Array.isArray(data)) {
+      throw new Error(
+        "Formato de pedidos inválido."
+      );
+    }
+
+    if (data.length === 0) {
+      container.innerHTML = `
+        <p class="muted">
+          Ainda não existem pedidos.
+        </p>
+      `;
+
+      return;
+    }
+
+    container.innerHTML =
+      data.map((order) => {
+
+        const items =
+          Array.isArray(order.items)
+            ? order.items
+            : [];
+
+        const itemsHtml =
+          items.map((item) => {
+
+            let text =
+              `${item.name} × ${item.quantity}`;
+
+            if (item.size) {
+              text +=
+                ` — Tamanho: ${item.size}`;
+            }
+
+            text +=
+              ` — ${formatMoney(item.price)}`;
+
+            return `
+              <li>
+                ${escapeHtml(text)}
+              </li>
+            `;
+          }).join("");
+
+        const date =
+          order.createdAt
+            ? new Date(
+                order.createdAt
+              ).toLocaleString(
+                "pt-PT"
+              )
+            : "";
+
+        return `
+          <article class="orderCard">
+
+            <div class="sectionTitle">
+
+              <div>
+                <h3>
+                  Pedido #${order.id}
+                </h3>
+
+                <p class="muted">
+                  ${escapeHtml(date)}
+                </p>
+              </div>
+
+              <strong>
+                ${formatMoney(order.total)}
+              </strong>
+
+            </div>
+
+            <p>
+              <strong>Cliente:</strong>
+              ${escapeHtml(
+                order.customerName || ""
+              )}
+            </p>
+
+            <p>
+              <strong>Telefone:</strong>
+              ${escapeHtml(
+                order.customerPhone || ""
+              )}
+            </p>
+
+            <p>
+              <strong>Produtos:</strong>
+            </p>
+
+            <ul>
+              ${itemsHtml}
+            </ul>
+
+          </article>
+        `;
+      }).join("");
+
+  } catch (error) {
+    console.error(
+      "Erro ao carregar pedidos:",
+      error
+    );
+
+    container.innerHTML = `
+      <p>
+        Não foi possível carregar os pedidos.
+      </p>
+    `;
+  }
+}
+
+// ======================================================
+// LOGOUT
+// ======================================================
+
+async function logout() {
+  try {
+    await api(
+      "/api/logout",
+      {
+        method: "POST"
+      }
+    );
+
+  } catch (error) {
+    console.error(
+      "Erro ao sair:",
+      error
+    );
+
+  } finally {
+    window.location.href = "/";
+  }
+}
+
+// ======================================================
+// EVENTOS
+// ======================================================
+
+function setupEvents() {
+
+  const productForm =
+    document.getElementById(
+      "productForm"
+    );
+
+  if (productForm) {
+    productForm.addEventListener(
+      "submit",
+      saveProduct
+    );
+  }
+
+
+  const sizeType =
+    document.getElementById(
+      "sizeType"
+    );
+
+  if (sizeType) {
+    sizeType.addEventListener(
+      "change",
+      () => {
+        renderSizeOptions([]);
+      }
+    );
+  }
+
+
+  const imageFile =
+    document.getElementById(
+      "imageFile"
+    );
+
+  if (imageFile) {
+    imageFile.addEventListener(
+      "change",
+      handleImageChange
+    );
+  }
+
+
+  const clearBtn =
+    document.getElementById(
+      "clearBtn"
+    );
+
+  if (clearBtn) {
+    clearBtn.addEventListener(
+      "click",
+      clearForm
+    );
+  }
+
+
+  const logoutBtn =
+    document.getElementById(
+      "logoutBtn"
+    );
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener(
+      "click",
+      logout
+    );
+  }
+
+
+  const productsList =
+    document.getElementById(
+      "productsList"
+    );
+
+  if (productsList) {
+
+    productsList.addEventListener(
+      "click",
+      (event) => {
+
+        const editButton =
+          event.target.closest(
+            ".editProductBtn"
+          );
+
+        if (editButton) {
+          const id =
+            editButton.dataset.id;
+
+          editProduct(id);
+
+          return;
+        }
+
+
+        const deleteButton =
+          event.target.closest(
+            ".deleteProductBtn"
+          );
+
+        if (deleteButton) {
+          const id =
+            deleteButton.dataset.id;
+
+          deleteProduct(id);
+        }
+
+      }
+    );
+  }
+}
+
+// ======================================================
+// INICIALIZAÇÃO
+// ======================================================
+
+async function init() {
+  try {
+
+    // Primeiro obtemos o CSRF
+    await getCsrfToken();
+
+
+    // Verificamos se o administrador está autenticado
+    const me =
+      await api("/api/me");
+
+    if (!me || !me.authenticated) {
+      window.location.href = "/";
+      return;
+    }
+
+
+    // Configura eventos
+    setupEvents();
+
+
+    // Estado inicial dos tamanhos
+    renderSizeOptions([]);
+
+
+    // Carrega produtos
+    await loadProducts();
+
+
+    // Carrega pedidos
+    await loadOrders();
+
+  } catch (error) {
+
+    console.error(
+      "Erro ao iniciar administração:",
+      error
+    );
+
+    alert(
+      error.message ||
+      "Ocorreu um erro ao carregar a administração."
+    );
+  }
+}
+
+
+// ======================================================
+// INICIAR
+// ======================================================
 
 init();
