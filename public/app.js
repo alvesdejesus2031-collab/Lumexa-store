@@ -31,7 +31,9 @@ async function api(url, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data.error || `Erro ${response.status}`);
+    throw new Error(
+      data.error || `Erro ${response.status}`
+    );
   }
 
   return data;
@@ -44,6 +46,7 @@ async function getCsrfToken() {
 
 async function load() {
   products = await api("/api/products");
+
   render();
   cats();
   updateCart();
@@ -71,7 +74,8 @@ function render() {
       .value
       .toLowerCase();
 
-  const cat = document.querySelector("#cat").value;
+  const cat =
+    document.querySelector("#cat").value;
 
   document.querySelector("#products").innerHTML =
     products
@@ -105,7 +109,9 @@ function render() {
 
               <h3>${esc(p.name)}</h3>
 
-              <div>${esc(p.description || "")}</div>
+              <div>
+                ${esc(p.description || "")}
+              </div>
 
               <div class="price">
                 ${fmt(p.price)}
@@ -113,19 +119,24 @@ function render() {
 
               ${
                 p.available
-                  ? `<button
+                  ? `
+                    <button
                       type="button"
                       class="addProduct"
                       data-id="${p.id}"
                     >
                       Adicionar ao pedido
-                    </button>`
-                  : `<span class="badge">
+                    </button>
+                  `
+                  : `
+                    <span class="badge">
                       Indisponível
-                    </span>`
+                    </span>
+                  `
               }
 
             </div>
+
           </article>
         `
       )
@@ -133,17 +144,17 @@ function render() {
     "<p>Nenhum produto encontrado.</p>";
 }
 
-function esc(s) {
-  return String(s).replace(
+function esc(value) {
+  return String(value).replace(
     /[&<>"']/g,
-    m =>
+    character =>
       ({
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
         '"': "&quot;",
         "'": "&#039;"
-      })[m]
+      })[character]
   );
 }
 
@@ -170,7 +181,6 @@ function add(id) {
   }
 
   updateCart();
-
   toggleCart(true);
 }
 
@@ -195,6 +205,7 @@ function updateCart() {
 
         return `
           <div class="cartItem">
+
             <span>
               ${esc(product.name)} × ${item.qty}
             </span>
@@ -202,6 +213,7 @@ function updateCart() {
             <b>
               ${fmt(product.price * item.qty)}
             </b>
+
           </div>
         `;
       })
@@ -221,8 +233,12 @@ function updateCart() {
     0
   );
 
-  document.querySelector("#total").textContent =
-    fmt(total);
+  const totalEl =
+    document.querySelector("#total");
+
+  if (totalEl) {
+    totalEl.textContent = fmt(total);
+  }
 }
 
 function toggleCart(force) {
@@ -241,128 +257,177 @@ function toggleCart(force) {
   );
 }
 
-/* Pesquisa */
+/* PESQUISA */
 
 document
   .querySelector("#search")
-  .addEventListener("input", render);
+  .addEventListener(
+    "input",
+    render
+  );
 
 document
   .querySelector("#cat")
-  .addEventListener("change", render);
+  .addEventListener(
+    "change",
+    render
+  );
 
-/* Adicionar produtos ao pedido */
+/* ADICIONAR PRODUTO */
 
 document
   .querySelector("#products")
-  .addEventListener("click", event => {
-    const button =
-      event.target.closest(".addProduct");
+  .addEventListener(
+    "click",
+    event => {
 
-    if (!button) {
-      return;
+      const button =
+        event.target.closest(".addProduct");
+
+      if (!button) {
+        return;
+      }
+
+      add(
+        Number(button.dataset.id)
+      );
     }
+  );
 
-    add(Number(button.dataset.id));
-  });
-
-/* Abrir/fechar carrinho */
+/* FECHAR CARRINHO */
 
 const cartCloseButton =
-  document.querySelector("#cart .cartHead button");
+  document.querySelector(
+    "#closeCart"
+  );
 
 if (cartCloseButton) {
   cartCloseButton.addEventListener(
     "click",
-    () => toggleCart()
+    () => {
+      toggleCart(false);
+    }
   );
 }
 
-/* Fazer pedido */
+/* ENVIAR PEDIDO */
 
 document
   .querySelector("#orderBtn")
-  .addEventListener("click", async () => {
-    try {
-      if (!cart.length) {
-        throw new Error(
-          "Adicione produtos ao pedido."
-        );
-      }
+  .addEventListener(
+    "click",
+    async () => {
 
-      if (!customerNameEl.value.trim()) {
-        throw new Error(
-          "Digite o seu nome."
-        );
-      }
+      try {
 
-      if (!customerPhoneEl.value.trim()) {
-        throw new Error(
-          "Digite o seu telefone."
-        );
-      }
-
-      const data = await api(
-        "/api/orders",
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json"
-          },
-
-          body: JSON.stringify({
-            customerName:
-              customerNameEl.value.trim(),
-
-            customerPhone:
-              customerPhoneEl.value.trim(),
-
-            items: cart
-          })
+        if (!cart.length) {
+          throw new Error(
+            "Adicione produtos ao pedido."
+          );
         }
-      );
 
-      location.href = data.whatsappUrl;
+        if (
+          !customerNameEl.value.trim()
+        ) {
+          throw new Error(
+            "Digite o seu nome."
+          );
+        }
 
-    } catch (error) {
-      alert(error.message);
+        if (
+          !customerPhoneEl.value.trim()
+        ) {
+          throw new Error(
+            "Digite o seu telefone."
+          );
+        }
+
+        const data =
+          await api(
+            "/api/orders",
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+
+              body: JSON.stringify({
+                customerName:
+                  customerNameEl.value.trim(),
+
+                customerPhone:
+                  customerPhoneEl.value.trim(),
+
+                items: cart
+              })
+            }
+          );
+
+        location.href =
+          data.whatsappUrl;
+
+      } catch (error) {
+
+        alert(error.message);
+
+      }
     }
-  });
+  );
 
-/* Área do administrador */
+/* ABRIR ADMINISTRADOR */
 
 adminBtnEl.addEventListener(
   "click",
   () => {
-    modalEl.classList.remove("hidden");
+
+    modalEl.classList.remove(
+      "hidden"
+    );
+
     loginMsgEl.textContent = "";
   }
 );
 
-/* Fechar área do administrador */
+/* FECHAR ADMINISTRADOR PELO X */
 
 const closeModalButton =
-  document.querySelector("#modal .close");
+  document.querySelector(
+    "#closeModal"
+  );
 
 if (closeModalButton) {
+
   closeModalButton.addEventListener(
     "click",
     () => {
-      modalEl.classList.add("hidden");
+
+      modalEl.classList.add(
+        "hidden"
+      );
+
+      emailEl.value = "";
+      passwordEl.value = "";
+      codeEl.value = "";
+      loginMsgEl.textContent = "";
     }
   );
 }
 
-/* Botão Ver produtos */
+/* VER PRODUTOS */
 
 const viewProductsButton =
-  document.querySelector("#viewProducts");
+  document.querySelector(
+    "#viewProducts"
+  );
 
 if (viewProductsButton) {
+
   viewProductsButton.addEventListener(
     "click",
     () => {
+
       document
         .querySelector("#products")
         .scrollIntoView({
@@ -372,15 +437,17 @@ if (viewProductsButton) {
   );
 }
 
-/* Login do administrador */
+/* LOGIN DO ADMINISTRADOR */
 
 loginEl.addEventListener(
   "click",
   async () => {
+
     loginMsgEl.textContent =
       "A entrar...";
 
     try {
+
       const csrfToken =
         await getCsrfToken();
 
@@ -398,6 +465,7 @@ loginEl.addEventListener(
           },
 
           body: JSON.stringify({
+
             email:
               emailEl.value.trim(),
 
@@ -406,6 +474,7 @@ loginEl.addEventListener(
 
             code:
               codeEl.value.trim()
+
           })
         }
       );
@@ -414,14 +483,18 @@ loginEl.addEventListener(
         "/admin.html";
 
     } catch (error) {
+
       loginMsgEl.textContent =
         error.message;
+
     }
   }
 );
 
-/* Iniciar loja */
+/* CARREGAR LOJA */
 
-load().catch(error => {
-  console.error(error);
-});
+load().catch(
+  error => {
+    console.error(error);
+  }
+);
