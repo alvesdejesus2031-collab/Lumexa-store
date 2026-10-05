@@ -772,7 +772,6 @@ orderButton.addEventListener(
       alert(
         "Adicione pelo menos um produto."
       );
-
       return;
     }
 
@@ -783,22 +782,14 @@ orderButton.addEventListener(
       customerPhone.value.trim();
 
     if (!name) {
-      alert(
-        "Digite o seu nome."
-      );
-
+      alert("Digite o seu nome.");
       customerName.focus();
-
       return;
     }
 
     if (!phone) {
-      alert(
-        "Digite o seu telefone."
-      );
-
+      alert("Digite o seu telefone.");
       customerPhone.focus();
-
       return;
     }
 
@@ -824,7 +815,6 @@ orderButton.addEventListener(
       alert(
         `Escolha o tamanho de "${invalidSize.name}".`
       );
-
       return;
     }
 
@@ -833,13 +823,30 @@ orderButton.addEventListener(
       "A preparar pedido...";
 
     try {
+      /* Obter token CSRF */
+      const csrfResponse =
+        await fetch("/api/csrf");
+
+      if (!csrfResponse.ok) {
+        throw new Error(
+          "Não foi possível obter o token de segurança."
+        );
+      }
+
+      const csrfData =
+        await csrfResponse.json();
+
+      /* Criar pedido */
       const response =
         await fetch("/api/orders", {
           method: "POST",
 
           headers: {
             "Content-Type":
-              "application/json"
+              "application/json",
+
+            "CSRF-Token":
+              csrfData.csrfToken
           },
 
           body: JSON.stringify({
@@ -884,12 +891,3 @@ orderButton.addEventListener(
     }
   }
 );
-
-
-/* =========================
-   INICIALIZAÇÃO
-========================= */
-
-renderCart();
-
-loadProducts();
