@@ -1,27 +1,29 @@
+"use strict";
+
 let products = [];
 let cart = [];
 
-const SIZE_LABELS = {
-  shirt: "Tamanho",
-  pants: "Tamanho",
-  shoe: "Tamanho"
-};
+const WHATSAPP_NUMBER = "244937770994";
 
-const SIZE_NAMES = {
-  shirt: "Camisa",
-  pants: "Calça",
-  shoe: "Sapato"
-};
-
-const search = document.getElementById("search");
-const category = document.getElementById("cat");
 const productsContainer =
   document.getElementById("products");
+
+const searchInput =
+  document.getElementById("search");
+
+const categorySelect =
+  document.getElementById("cat");
+
+const viewProductsButton =
+  document.getElementById("viewProducts");
 
 const cartElement =
   document.getElementById("cart");
 
-const cartItems =
+const closeCartButton =
+  document.getElementById("closeCart");
+
+const cartItemsElement =
   document.getElementById("cartItems");
 
 const totalElement =
@@ -36,12 +38,6 @@ const customerPhone =
 const orderButton =
   document.getElementById("orderBtn");
 
-const closeCartButton =
-  document.getElementById("closeCart");
-
-const viewProductsButton =
-  document.getElementById("viewProducts");
-
 const adminButton =
   document.getElementById("adminBtn");
 
@@ -51,9 +47,6 @@ const modal =
 const closeModalButton =
   document.getElementById("closeModal");
 
-const loginButton =
-  document.getElementById("login");
-
 const emailInput =
   document.getElementById("email");
 
@@ -62,6 +55,9 @@ const passwordInput =
 
 const codeInput =
   document.getElementById("code");
+
+const loginButton =
+  document.getElementById("login");
 
 const loginMessage =
   document.getElementById("loginMsg");
@@ -74,7 +70,13 @@ const loginMessage =
 async function loadProducts() {
   try {
     const response =
-      await fetch("/api/products");
+      await fetch(
+        "/api/products",
+        {
+          credentials:
+            "same-origin"
+        }
+      );
 
     if (!response.ok) {
       throw new Error(
@@ -85,12 +87,21 @@ async function loadProducts() {
     products =
       await response.json();
 
-    populateCategories();
+    buildCategories();
+
     renderProducts();
 
+    renderCart();
+
   } catch (error) {
+    console.error(error);
+
     productsContainer.innerHTML =
-      `<p>${error.message}</p>`;
+      `
+      <div class="empty">
+        <p>Não foi possível carregar os produtos.</p>
+      </div>
+      `;
   }
 }
 
@@ -99,247 +110,365 @@ async function loadProducts() {
    CATEGORIAS
 ========================= */
 
-function populateCategories() {
-  const categories = [
-    ...new Set(
-      products
-        .map(product => product.category)
-        .filter(Boolean)
-    )
-  ];
+function buildCategories() {
+  const current =
+    categorySelect.value;
 
-  category.innerHTML =
-    '<option value="">Todas as categorias</option>';
+  const categories =
+    [
+      ...new Set(
+        products
+          .map(
+            product =>
+              String(
+                product.category || ""
+              ).trim()
+          )
+          .filter(Boolean)
+      )
+    ]
+      .sort(
+        (a, b) =>
+          a.localeCompare(
+            b,
+            "pt"
+          )
+      );
 
-  categories.forEach(item => {
-    const option =
-      document.createElement("option");
+  categorySelect.innerHTML =
+    "";
 
-    option.value = item;
-    option.textContent = item;
-
-    category.appendChild(option);
-  });
-}
-
-
-/* =========================
-   FILTRO
-========================= */
-
-function getFilteredProducts() {
-  const searchText =
-    search.value
-      .trim()
-      .toLowerCase();
-
-  const selectedCategory =
-    category.value;
-
-  return products.filter(product => {
-    const matchesSearch =
-      !searchText ||
-      product.name
-        .toLowerCase()
-        .includes(searchText) ||
-      String(product.description || "")
-        .toLowerCase()
-        .includes(searchText);
-
-    const matchesCategory =
-      !selectedCategory ||
-      product.category ===
-        selectedCategory;
-
-    return (
-      product.available &&
-      matchesSearch &&
-      matchesCategory
+  const allOption =
+    document.createElement(
+      "option"
     );
-  });
-}
 
+  allOption.value =
+    "";
 
-/* =========================
-   TAMANHOS
-========================= */
+  allOption.textContent =
+    "Todas as categorias";
 
-function createSizeSelector(product) {
+  categorySelect.appendChild(
+    allOption
+  );
+
+  categories.forEach(
+    category => {
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        category;
+
+      option.textContent =
+        category;
+
+      categorySelect.appendChild(
+        option
+      );
+    }
+  );
+
   if (
-    !product.sizeType ||
-    !Array.isArray(product.sizes) ||
-    !product.sizes.length
+    categories.includes(
+      current
+    )
   ) {
-    return null;
+    categorySelect.value =
+      current;
   }
-
-  const wrapper =
-    document.createElement("div");
-
-  wrapper.style.cssText = `
-    margin-top:12px;
-  `;
-
-  const label =
-    document.createElement("label");
-
-  label.textContent =
-    `${SIZE_NAMES[product.sizeType] || "Produto"} — tamanho:`;
-
-  label.style.cssText = `
-    display:block;
-    font-weight:600;
-    margin-bottom:6px;
-  `;
-
-  const select =
-    document.createElement("select");
-
-  select.className =
-    "product-size";
-
-  select.dataset.productId =
-    product.id;
-
-  select.style.cssText = `
-    width:100%;
-    padding:10px;
-    border:1px solid #ddd;
-    border-radius:10px;
-    background:white;
-  `;
-
-  const firstOption =
-    document.createElement("option");
-
-  firstOption.value = "";
-  firstOption.textContent =
-    "Escolher tamanho";
-
-  select.appendChild(firstOption);
-
-  product.sizes.forEach(size => {
-    const option =
-      document.createElement("option");
-
-    option.value = size;
-    option.textContent = size;
-
-    select.appendChild(option);
-  });
-
-  wrapper.appendChild(label);
-  wrapper.appendChild(select);
-
-  return wrapper;
 }
 
 
 /* =========================
-   MOSTRAR PRODUTOS
+   PRODUTOS
 ========================= */
 
 function renderProducts() {
-  productsContainer.innerHTML = "";
+  const search =
+    searchInput.value
+      .trim()
+      .toLowerCase();
+
+  const category =
+    categorySelect.value;
 
   const filtered =
-    getFilteredProducts();
+    products.filter(
+      product => {
+        const text =
+          [
+            product.name,
+            product.category,
+            product.type,
+            product.description
+          ]
+            .join(" ")
+            .toLowerCase();
+
+        const matchesSearch =
+          !search ||
+          text.includes(search);
+
+        const matchesCategory =
+          !category ||
+          product.category ===
+            category;
+
+        return (
+          matchesSearch &&
+          matchesCategory
+        );
+      }
+    );
+
+  productsContainer.innerHTML =
+    "";
 
   if (!filtered.length) {
     productsContainer.innerHTML =
-      "<p>Nenhum produto encontrado.</p>";
+      `
+      <div class="empty">
+        <p>Nenhum produto encontrado.</p>
+      </div>
+      `;
 
     return;
   }
 
-  filtered.forEach(product => {
-    const card =
-      document.createElement("article");
+  filtered.forEach(
+    product => {
+      const card =
+        document.createElement(
+          "article"
+        );
 
-    card.className = "panel";
+      card.className =
+        "productCard";
 
-    if (product.image) {
-      const image =
-        document.createElement("img");
 
-      image.src = product.image;
-      image.alt = product.name;
+      /* IMAGEM */
 
-      image.style.cssText = `
-        width:100%;
-        height:240px;
-        object-fit:cover;
-        border-radius:14px;
-        margin-bottom:12px;
-      `;
+      if (product.image) {
+        const image =
+          document.createElement(
+            "img"
+          );
 
-      card.appendChild(image);
-    }
+        image.src =
+          product.image;
 
-    const title =
-      document.createElement("h3");
+        image.alt =
+          product.name;
 
-    title.textContent =
-      product.name;
+        image.loading =
+          "lazy";
 
-    card.appendChild(title);
+        card.appendChild(
+          image
+        );
+      }
 
-    const categoryText =
-      document.createElement("p");
 
-    categoryText.textContent =
-      product.category;
+      const content =
+        document.createElement(
+          "div"
+        );
 
-    card.appendChild(categoryText);
+      content.className =
+        "productContent";
 
-    if (product.description) {
+
+      const category =
+        document.createElement(
+          "p"
+        );
+
+      category.className =
+        "productCategory";
+
+      category.textContent =
+        product.category ||
+        "Produto";
+
+
+      const title =
+        document.createElement(
+          "h3"
+        );
+
+      title.textContent =
+        product.name;
+
+
       const description =
-        document.createElement("p");
+        document.createElement(
+          "p"
+        );
+
+      description.className =
+        "productDescription";
 
       description.textContent =
-        product.description;
+        product.description ||
+        "";
 
-      card.appendChild(description);
+
+      const price =
+        document.createElement(
+          "p"
+        );
+
+      price.className =
+        "productPrice";
+
+      price.textContent =
+        formatMoney(
+          product.price
+        );
+
+
+      content.appendChild(
+        category
+      );
+
+      content.appendChild(
+        title
+      );
+
+      if (
+        product.description
+      ) {
+        content.appendChild(
+          description
+        );
+      }
+
+      content.appendChild(
+        price
+      );
+
+
+      /* TAMANHOS */
+
+      if (
+        product.sizeType &&
+        Array.isArray(
+          product.sizes
+        ) &&
+        product.sizes.length
+      ) {
+        const sizeLabel =
+          document.createElement(
+            "label"
+          );
+
+        sizeLabel.className =
+          "sizeLabel";
+
+        sizeLabel.textContent =
+          "Tamanho:";
+
+
+        const sizeSelect =
+          document.createElement(
+            "select"
+          );
+
+        sizeSelect.className =
+          "productSize";
+
+        sizeSelect.dataset.productId =
+          product.id;
+
+
+        const placeholder =
+          document.createElement(
+            "option"
+          );
+
+        placeholder.value =
+          "";
+
+        placeholder.textContent =
+          "Escolher tamanho";
+
+        sizeSelect.appendChild(
+          placeholder
+        );
+
+
+        product.sizes.forEach(
+          size => {
+            const option =
+              document.createElement(
+                "option"
+              );
+
+            option.value =
+              size;
+
+            option.textContent =
+              size;
+
+            sizeSelect.appendChild(
+              option
+            );
+          }
+        );
+
+
+        content.appendChild(
+          sizeLabel
+        );
+
+        content.appendChild(
+          sizeSelect
+        );
+      }
+
+
+      /* BOTÃO */
+
+      const addButton =
+        document.createElement(
+          "button"
+        );
+
+      addButton.type =
+        "button";
+
+      addButton.className =
+        "addToCart";
+
+      addButton.textContent =
+        product.available
+          ? "Adicionar ao pedido"
+          : "Indisponível";
+
+      addButton.disabled =
+        !product.available;
+
+      addButton.dataset.productId =
+        product.id;
+
+      content.appendChild(
+        addButton
+      );
+
+
+      card.appendChild(
+        content
+      );
+
+      productsContainer.appendChild(
+        card
+      );
     }
-
-    const price =
-      document.createElement("strong");
-
-    price.textContent =
-      `${Number(product.price).toLocaleString("pt-AO")} AOA`;
-
-    price.style.display = "block";
-    price.style.margin = "10px 0";
-
-    card.appendChild(price);
-
-    const sizeSelector =
-      createSizeSelector(product);
-
-    if (sizeSelector) {
-      card.appendChild(sizeSelector);
-    }
-
-    const addButton =
-      document.createElement("button");
-
-    addButton.type = "button";
-    addButton.textContent =
-      "Adicionar ao pedido";
-
-    addButton.dataset.action =
-      "add-cart";
-
-    addButton.dataset.id =
-      product.id;
-
-    addButton.style.marginTop =
-      "12px";
-
-    card.appendChild(addButton);
-
-    productsContainer.appendChild(card);
-  });
+  );
 }
 
 
@@ -347,93 +476,100 @@ function renderProducts() {
    ADICIONAR AO CARRINHO
 ========================= */
 
-function addToCart(productId, size) {
-  const product =
-    products.find(
-      item =>
-        Number(item.id) ===
-        Number(productId)
-    );
-
-  if (!product) {
-    return;
-  }
-
-  const hasSizes =
-    product.sizeType &&
-    Array.isArray(product.sizes) &&
-    product.sizes.length > 0;
-
-  if (hasSizes && !size) {
-    alert(
-      "Escolha um tamanho antes de adicionar o produto."
-    );
-
-    return;
-  }
-
-  const existing =
-    cart.find(item =>
-      Number(item.id) ===
-        Number(product.id) &&
-      item.size === (size || "")
-    );
-
-  if (existing) {
-    existing.qty += 1;
-  } else {
-    cart.push({
-      id: product.id,
-      name: product.name,
-      price: Number(product.price),
-      qty: 1,
-      size: size || ""
-    });
-  }
-
-  renderCart();
-
-  cartElement.classList.add("open");
-}
-
-
-/* =========================
-   EVENTOS DOS PRODUTOS
-========================= */
-
 productsContainer.addEventListener(
   "click",
   event => {
     const button =
       event.target.closest(
-        'button[data-action="add-cart"]'
+        ".addToCart"
       );
 
     if (!button) {
       return;
     }
 
-    const productId =
-      Number(button.dataset.id);
+    const id =
+      Number(
+        button.dataset.productId
+      );
 
-    const card =
-      button.closest(".panel");
+    const product =
+      products.find(
+        item =>
+          Number(item.id) ===
+          id
+      );
 
-    const sizeSelect =
-      card
-        ? card.querySelector(
-            ".product-size"
-          )
-        : null;
+    if (!product) {
+      return;
+    }
 
-    const size =
-      sizeSelect
-        ? sizeSelect.value
-        : "";
 
-    addToCart(
-      productId,
-      size
+    let size = "";
+
+
+    if (
+      product.sizeType &&
+      Array.isArray(
+        product.sizes
+      ) &&
+      product.sizes.length
+    ) {
+      const select =
+        productsContainer.querySelector(
+          `.productSize[data-product-id="${id}"]`
+        );
+
+      size =
+        select
+          ? select.value
+          : "";
+
+      if (!size) {
+        alert(
+          `Escolha o tamanho de "${product.name}".`
+        );
+
+        return;
+      }
+    }
+
+
+    const existing =
+      cart.find(
+        item =>
+          Number(item.id) === id &&
+          item.size === size
+      );
+
+
+    if (existing) {
+      existing.qty += 1;
+
+    } else {
+      cart.push({
+        id:
+          product.id,
+
+        name:
+          product.name,
+
+        price:
+          Number(
+            product.price
+          ),
+
+        qty: 1,
+
+        size
+      });
+    }
+
+
+    renderCart();
+
+    cartElement.classList.add(
+      "open"
     );
   }
 );
@@ -444,116 +580,181 @@ productsContainer.addEventListener(
 ========================= */
 
 function renderCart() {
-  cartItems.innerHTML = "";
+  cartItemsElement.innerHTML =
+    "";
 
   if (!cart.length) {
-    cartItems.innerHTML =
-      "<p>O seu pedido está vazio.</p>";
+    cartItemsElement.innerHTML =
+      `
+      <p class="muted">
+        O seu pedido está vazio.
+      </p>
+      `;
 
     totalElement.textContent =
-      "Total: 0 AOA";
+      "Total: 0 Kz";
 
     return;
   }
 
+
   let total = 0;
 
-  cart.forEach((item, index) => {
-    const row =
-      document.createElement("div");
 
-    row.style.cssText = `
-      padding:12px 0;
-      border-bottom:1px solid #eee;
-    `;
+  cart.forEach(
+    (item, index) => {
+      const row =
+        document.createElement(
+          "div"
+        );
 
-    const name =
-      document.createElement("strong");
+      row.className =
+        "cartItem";
 
-    let itemName =
-      `${item.name} × ${item.qty}`;
 
-    if (item.size) {
-      itemName +=
-        ` — Tamanho: ${item.size}`;
+      const subtotal =
+        item.price *
+        item.qty;
+
+      total +=
+        subtotal;
+
+
+      const info =
+        document.createElement(
+          "div"
+        );
+
+      let title =
+        item.name;
+
+      if (item.size) {
+        title +=
+          ` — ${item.size}`;
+      }
+
+      info.innerHTML =
+        `
+        <strong>${escapeHtml(
+          title
+        )}</strong>
+        <small>
+          ${formatMoney(
+            item.price
+          )} × ${item.qty}
+        </small>
+        `;
+
+
+      const controls =
+        document.createElement(
+          "div"
+        );
+
+      controls.className =
+        "cartControls";
+
+
+      const minus =
+        document.createElement(
+          "button"
+        );
+
+      minus.type =
+        "button";
+
+      minus.textContent =
+        "−";
+
+      minus.dataset.action =
+        "minus";
+
+      minus.dataset.index =
+        index;
+
+
+      const quantity =
+        document.createElement(
+          "span"
+        );
+
+      quantity.textContent =
+        item.qty;
+
+
+      const plus =
+        document.createElement(
+          "button"
+        );
+
+      plus.type =
+        "button";
+
+      plus.textContent =
+        "+";
+
+      plus.dataset.action =
+        "plus";
+
+      plus.dataset.index =
+        index;
+
+
+      const remove =
+        document.createElement(
+          "button"
+        );
+
+      remove.type =
+        "button";
+
+      remove.textContent =
+        "×";
+
+      remove.dataset.action =
+        "remove";
+
+      remove.dataset.index =
+        index;
+
+
+      controls.appendChild(
+        minus
+      );
+
+      controls.appendChild(
+        quantity
+      );
+
+      controls.appendChild(
+        plus
+      );
+
+      controls.appendChild(
+        remove
+      );
+
+
+      row.appendChild(
+        info
+      );
+
+      row.appendChild(
+        controls
+      );
+
+
+      cartItemsElement.appendChild(
+        row
+      );
     }
+  );
 
-    name.textContent =
-      itemName;
-
-    row.appendChild(name);
-
-    const subtotal =
-      item.price * item.qty;
-
-    total += subtotal;
-
-    const price =
-      document.createElement("p");
-
-    price.textContent =
-      `${Number(subtotal).toLocaleString("pt-AO")} AOA`;
-
-    row.appendChild(price);
-
-    const controls =
-      document.createElement("div");
-
-    controls.style.cssText = `
-      display:flex;
-      gap:8px;
-      align-items:center;
-    `;
-
-    const minus =
-      document.createElement("button");
-
-    minus.type = "button";
-    minus.textContent = "−";
-    minus.dataset.cartAction =
-      "minus";
-    minus.dataset.index = index;
-
-    const quantity =
-      document.createElement("span");
-
-    quantity.textContent =
-      String(item.qty);
-
-    const plus =
-      document.createElement("button");
-
-    plus.type = "button";
-    plus.textContent = "+";
-    plus.dataset.cartAction =
-      "plus";
-    plus.dataset.index = index;
-
-    const remove =
-      document.createElement("button");
-
-    remove.type = "button";
-    remove.textContent =
-      "Remover";
-    remove.dataset.cartAction =
-      "remove";
-    remove.dataset.index = index;
-
-    remove.className =
-      "ghost";
-
-    controls.appendChild(minus);
-    controls.appendChild(quantity);
-    controls.appendChild(plus);
-    controls.appendChild(remove);
-
-    row.appendChild(controls);
-
-    cartItems.appendChild(row);
-  });
 
   totalElement.textContent =
-    `Total: ${Number(total).toLocaleString("pt-AO")} AOA`;
+    `Total: ${formatMoney(
+      total
+    )}`;
 }
 
 
@@ -561,12 +762,12 @@ function renderCart() {
    CONTROLOS DO CARRINHO
 ========================= */
 
-cartItems.addEventListener(
+cartItemsElement.addEventListener(
   "click",
   event => {
     const button =
       event.target.closest(
-        "button[data-cart-action]"
+        "button[data-action]"
       );
 
     if (!button) {
@@ -574,30 +775,55 @@ cartItems.addEventListener(
     }
 
     const index =
-      Number(button.dataset.index);
+      Number(
+        button.dataset.index
+      );
 
-    if (!cart[index]) {
+    const action =
+      button.dataset.action;
+
+    if (
+      !cart[index]
+    ) {
       return;
     }
 
-    const action =
-      button.dataset.cartAction;
 
-    if (action === "plus") {
-      cart[index].qty += 1;
+    if (
+      action === "plus"
+    ) {
+      cart[index].qty +=
+        1;
     }
 
-    if (action === "minus") {
-      cart[index].qty -= 1;
 
-      if (cart[index].qty <= 0) {
-        cart.splice(index, 1);
+    if (
+      action === "minus"
+    ) {
+      cart[index].qty -=
+        1;
+
+      if (
+        cart[index].qty <=
+        0
+      ) {
+        cart.splice(
+          index,
+          1
+        );
       }
     }
 
-    if (action === "remove") {
-      cart.splice(index, 1);
+
+    if (
+      action === "remove"
+    ) {
+      cart.splice(
+        index,
+        1
+      );
     }
+
 
     renderCart();
   }
@@ -626,7 +852,9 @@ viewProductsButton.addEventListener(
   "click",
   () => {
     document
-      .getElementById("products")
+      .getElementById(
+        "products"
+      )
       .scrollIntoView({
         behavior: "smooth"
       });
@@ -635,93 +863,168 @@ viewProductsButton.addEventListener(
 
 
 /* =========================
-   PESQUISA / CATEGORIA
+   PESQUISA
 ========================= */
 
-search.addEventListener(
+searchInput.addEventListener(
   "input",
   renderProducts
 );
 
-category.addEventListener(
+
+/* =========================
+   CATEGORIA
+========================= */
+
+categorySelect.addEventListener(
   "change",
   renderProducts
 );
 
 
 /* =========================
-   ADMIN
+   ADMIN MODAL
 ========================= */
+
+function openAdminModal() {
+  modal.classList.remove(
+    "hidden"
+  );
+
+  emailInput.focus();
+}
+
+
+function closeAdminModal() {
+  modal.classList.add(
+    "hidden"
+  );
+
+  loginMessage.textContent =
+    "";
+}
+
 
 adminButton.addEventListener(
   "click",
-  () => {
-    modal.classList.remove("hidden");
-
-    emailInput.focus();
-  }
+  openAdminModal
 );
+
 
 closeModalButton.addEventListener(
   "click",
-  () => {
-    modal.classList.add("hidden");
-  }
+  closeAdminModal
 );
+
 
 modal.addEventListener(
   "click",
   event => {
-    if (event.target === modal) {
-      modal.classList.add("hidden");
+    if (
+      event.target ===
+      modal
+    ) {
+      closeAdminModal();
     }
   }
 );
 
 
 /* =========================
-   LOGIN ADMIN
+   LOGIN
 ========================= */
 
 loginButton.addEventListener(
   "click",
   async () => {
+    const email =
+      emailInput.value.trim();
+
+    const password =
+      passwordInput.value;
+
+    const code =
+      codeInput.value.trim();
+
+
+    if (!email) {
+      loginMessage.textContent =
+        "Digite o email.";
+
+      return;
+    }
+
+
+    if (!password) {
+      loginMessage.textContent =
+        "Digite a senha.";
+
+      return;
+    }
+
+
+    loginButton.disabled =
+      true;
+
     loginMessage.textContent =
       "A entrar...";
 
+
     try {
       const csrfResponse =
-        await fetch("/api/csrf");
+        await fetch(
+          "/api/csrf",
+          {
+            credentials:
+              "same-origin"
+          }
+        );
+
 
       const csrfData =
         await csrfResponse.json();
 
+
+      if (
+        !csrfResponse.ok ||
+        !csrfData.csrfToken
+      ) {
+        throw new Error(
+          "Não foi possível obter o token de segurança."
+        );
+      }
+
+
       const response =
-        await fetch("/api/login", {
-          method: "POST",
+        await fetch(
+          "/api/login",
+          {
+            method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
+            headers: {
+              "Content-Type":
+                "application/json",
 
-            "CSRF-Token":
-              csrfData.csrfToken
-          },
+              "CSRF-Token":
+                csrfData.csrfToken
+            },
 
-          body: JSON.stringify({
-            email:
-              emailInput.value,
+            credentials:
+              "same-origin",
 
-            password:
-              passwordInput.value,
+            body:
+              JSON.stringify({
+                email,
+                password,
+                code
+              })
+          }
+        );
 
-            code:
-              codeInput.value
-          })
-        });
 
       const data =
         await response.json();
+
 
       if (!response.ok) {
         throw new Error(
@@ -730,50 +1033,38 @@ loginButton.addEventListener(
         );
       }
 
+
       window.location.href =
         "/admin.html";
 
     } catch (error) {
       loginMessage.textContent =
         error.message;
+
+    } finally {
+      loginButton.disabled =
+        false;
     }
   }
 );
 
 
 /* =========================
-   ENTER NO LOGIN
-========================= */
-
-[
-  emailInput,
-  passwordInput,
-  codeInput
-].forEach(input => {
-  input.addEventListener(
-    "keydown",
-    event => {
-      if (event.key === "Enter") {
-        loginButton.click();
-      }
-    }
-  );
-});
-
-
-/* =========================
-   ENVIAR PEDIDO
+   PEDIDO
 ========================= */
 
 orderButton.addEventListener(
   "click",
   async () => {
+
     if (!cart.length) {
       alert(
-        "Adicione pelo menos um produto."
+        "Adicione pelo menos um produto ao pedido."
       );
+
       return;
     }
+
 
     const name =
       customerName.value.trim();
@@ -781,88 +1072,124 @@ orderButton.addEventListener(
     const phone =
       customerPhone.value.trim();
 
+
     if (!name) {
-      alert("Digite o seu nome.");
+      alert(
+        "Digite o seu nome."
+      );
+
       customerName.focus();
+
       return;
     }
+
 
     if (!phone) {
-      alert("Digite o seu telefone.");
-      customerPhone.focus();
-      return;
-    }
-
-    const invalidSize =
-      cart.find(item => {
-        const product =
-          products.find(
-            p =>
-              Number(p.id) ===
-              Number(item.id)
-          );
-
-        return (
-          product &&
-          product.sizeType &&
-          Array.isArray(product.sizes) &&
-          product.sizes.length &&
-          !item.size
-        );
-      });
-
-    if (invalidSize) {
       alert(
-        `Escolha o tamanho de "${invalidSize.name}".`
+        "Digite o seu telefone."
       );
+
+      customerPhone.focus();
+
       return;
     }
 
-    orderButton.disabled = true;
+
+    /* Verificar tamanhos */
+
+    for (
+      const item of cart
+    ) {
+      const product =
+        products.find(
+          product =>
+            Number(
+              product.id
+            ) ===
+            Number(
+              item.id
+            )
+        );
+
+
+      if (
+        product &&
+        product.sizeType &&
+        Array.isArray(
+          product.sizes
+        ) &&
+        product.sizes.length &&
+        !item.size
+      ) {
+        alert(
+          `Escolha o tamanho de "${product.name}".`
+        );
+
+        return;
+      }
+    }
+
+
+    orderButton.disabled =
+      true;
+
     orderButton.textContent =
       "A preparar pedido...";
 
+
     try {
-      /* Obter token CSRF */
-      const csrfResponse =
-        await fetch("/api/csrf");
 
-      if (!csrfResponse.ok) {
-        throw new Error(
-          "Não foi possível obter o token de segurança."
-        );
-      }
+      /*
+        IMPORTANTE:
+        O /api/orders foi configurado
+        no servidor como endpoint público.
+        Portanto NÃO enviamos CSRF aqui.
+      */
 
-      const csrfData =
-        await csrfResponse.json();
-
-      /* Criar pedido */
       const response =
-        await fetch("/api/orders", {
-          method: "POST",
+        await fetch(
+          "/api/orders",
+          {
+            method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
 
-            "CSRF-Token":
-              csrfData.csrfToken
-          },
+            credentials:
+              "same-origin",
 
-          body: JSON.stringify({
-            customerName: name,
-            customerPhone: phone,
+            body:
+              JSON.stringify({
+                customerName:
+                  name,
 
-            items: cart.map(item => ({
-              id: item.id,
-              qty: item.qty,
-              size: item.size || ""
-            }))
-          })
-        });
+                customerPhone:
+                  phone,
+
+                items:
+                  cart.map(
+                    item => ({
+                      id:
+                        item.id,
+
+                      qty:
+                        item.qty,
+
+                      size:
+                        item.size ||
+                        ""
+                    })
+                  )
+              })
+          }
+        );
+
 
       const data =
         await response.json();
+
 
       if (!response.ok) {
         throw new Error(
@@ -871,23 +1198,95 @@ orderButton.addEventListener(
         );
       }
 
+
+      /*
+        Limpar carrinho somente
+        depois do pedido ser criado.
+      */
+
       cart = [];
 
       renderCart();
 
-      window.open(
-        data.whatsappUrl,
-        "_blank"
-      );
+
+      if (
+        data.whatsappUrl
+      ) {
+        window.open(
+          data.whatsappUrl,
+          "_blank"
+        );
+      }
+
 
     } catch (error) {
-      alert(error.message);
+
+      alert(
+        error.message
+      );
 
     } finally {
-      orderButton.disabled = false;
+
+      orderButton.disabled =
+        false;
 
       orderButton.textContent =
         "Enviar pedido pelo WhatsApp";
     }
   }
 );
+
+
+/* =========================
+   UTILITÁRIOS
+========================= */
+
+function formatMoney(
+  value
+) {
+  return `${Number(
+    value || 0
+  ).toLocaleString(
+    "pt-PT",
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }
+  )} Kz`;
+}
+
+
+function escapeHtml(
+  value
+) {
+  return String(
+    value ?? ""
+  )
+    .replaceAll(
+      "&",
+      "&amp;"
+    )
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
+    .replaceAll(
+      "'",
+      "&#039;"
+    );
+}
+
+
+/* =========================
+   INICIAR
+========================= */
+
+loadProducts();
