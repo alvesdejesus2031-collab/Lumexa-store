@@ -1,40 +1,66 @@
 <!doctype html>
 <html lang="pt">
+
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
   <title>Lumexa Store — Administração</title>
-  <link rel="stylesheet" href="/styles.css">
+
+  <link
+    rel="stylesheet"
+    href="/styles.css"
+  >
 </head>
 
 <body>
 
 <header>
+
   <div class="brand">
     LUMEXA <span>ADMIN</span>
   </div>
 
-  <button id="logout">
+  <button
+    id="logout"
+    type="button"
+  >
     Sair
   </button>
+
 </header>
 
 <main style="padding:30px 6%">
 
-  <h1>Painel de administração</h1>
+  <h1>
+    Painel de administração
+  </h1>
 
   <p>
-    Produtos, disponibilidade e pedidos.
+    Produtos, tamanhos, disponibilidade e pedidos.
   </p>
 
   <section
     class="panel"
-    style="width:100%;max-width:900px;margin:20px 0"
+    style="
+      width:100%;
+      max-width:900px;
+      margin:20px 0
+    "
   >
 
-    <h2>Novo / editar produto</h2>
+    <h2>
+      Novo / editar produto
+    </h2>
 
-    <input id="id" type="hidden">
+    <input
+      id="id"
+      type="hidden"
+    >
 
     <input
       id="name"
@@ -53,7 +79,75 @@
       placeholder="Preço em AOA"
     >
 
-    <label style="display:block;margin:15px 0">
+    <!-- TIPO DE TAMANHO -->
+
+    <label
+      style="
+        display:block;
+        margin:15px 0 8px
+      "
+    >
+      Tipo de tamanho:
+    </label>
+
+    <select
+      id="sizeType"
+      style="
+        width:100%;
+        padding:12px;
+        border:1px solid #ddd;
+        border-radius:12px
+      "
+    >
+
+      <option value="">
+        Sem tamanho
+      </option>
+
+      <option value="shirt">
+        Camisa — S, M, L, XL, XXL
+      </option>
+
+      <option value="pants">
+        Calça — 32, 34, 36, 38, 40, 42, 44
+      </option>
+
+      <option value="shoe">
+        Sapato — 38, 39, 40, 41, 42, 43, 44
+      </option>
+
+    </select>
+
+    <!-- TAMANHOS -->
+
+    <div
+      id="sizesBox"
+      style="margin-top:15px"
+    >
+
+      <p>
+        Selecione os tamanhos disponíveis:
+      </p>
+
+      <div
+        id="sizeOptions"
+        style="
+          display:flex;
+          flex-wrap:wrap;
+          gap:10px
+        "
+      ></div>
+
+    </div>
+
+    <!-- IMAGEM -->
+
+    <label
+      style="
+        display:block;
+        margin:20px 0 15px
+      "
+    >
 
       Imagem do produto:
 
@@ -61,7 +155,10 @@
         id="imageFile"
         type="file"
         accept="image/*"
-        style="display:block;margin-top:8px"
+        style="
+          display:block;
+          margin-top:8px
+        "
       >
 
     </label>
@@ -75,9 +172,11 @@
         height:160px;
         object-fit:cover;
         border-radius:14px;
-        margin:10px 0;
+        margin:10px 0
       "
     >
+
+    <!-- DESCRIÇÃO -->
 
     <textarea
       id="description"
@@ -92,7 +191,14 @@
       "
     ></textarea>
 
-    <label style="display:block;margin:12px 0">
+    <!-- DISPONIBILIDADE -->
+
+    <label
+      style="
+        display:block;
+        margin:12px 0
+      "
+    >
 
       <input
         id="available"
@@ -104,7 +210,10 @@
 
     </label>
 
-    <button id="save">
+    <button
+      id="save"
+      type="button"
+    >
       Guardar produto
     </button>
 
@@ -123,14 +232,18 @@
 
   </section>
 
-  <h2>Produtos</h2>
+  <h2>
+    Produtos
+  </h2>
 
   <div
     id="list"
     class="grid"
   ></div>
 
-  <h2>Pedidos recentes</h2>
+  <h2>
+    Pedidos recentes
+  </h2>
 
   <div id="orders"></div>
 
@@ -139,4 +252,5 @@
 <script src="/admin.js"></script>
 
 </body>
+
 </html>
