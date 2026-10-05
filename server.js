@@ -1,6 +1,8 @@
 require("dotenv").config();
 
 const express = require("express");
+const app = express();
+app.set("trust proxy", 1);
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const { Pool } = require("pg");
