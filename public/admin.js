@@ -3,3 +3,418 @@ let currentProducts = [];
 const idEl = document.getElementById("id");
 const nameEl = document.getElementById("name");
 const categoryEl = document.getElementById("category");
+const priceEl = document.getElementById("price");
+const imageFileEl = document.getElementById("imageFile");
+const imagePreviewEl = document.getElementById("imagePreview");
+const descriptionEl = document.getElementById("description");
+const availableEl = document.getElementById("available");
+const saveEl = document.getElementById("save");
+const clearEl = document.getElementById("clear");
+const logoutEl = document.getElementById("logout");
+const listEl = document.getElementById("list");
+const ordersEl = document.getElementById("orders");
+const messageEl = document.getElementById("message");
+
+let selectedImage = "";
+
+async function api(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    credentials: "same-origin"
+  });
+
+  const text = await response.text();
+
+  let data = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error("Resposta inválida do servidor.");
+  }
+
+  if (response.status === 401) {
+    location.href = "/";
+    throw new Error("Sessão expirada.");
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error || `Erro ${response.status}`);
+  }
+
+  return data;
+}
+
+async function getCsrfToken() {
+  const data = await api("/api/csrf");
+  return data.csrfToken;
+}
+
+function fmt(value) {
+  return new Intl.NumberFormat("pt-AO").format(value) + " AOA";
+}
+
+function esc(value) {
+  return String(value).replace(
+    /[&<>"']/g,
+    character => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    })[character]
+  );
+}
+
+function showMessage(message, error = false) {
+  messageEl.textContent = message;
+  messageEl.style.color = error ? "crimson" : "green";
+}
+
+async function load() {
+  await api("/api/me");
+
+  currentProducts = await api("/api/products");
+
+  renderProducts();
+
+  const orders = await api("/api/orders");
+
+  ordersEl.innerHTML =
+    orders.map(order => `
+      <div
+        class="card"
+        style="padding:15px;margin:10px 0"
+      >
+        <b>
+          #${order.id} —
+          ${esc(order.customer_name)}
+        </b>
+
+        · ${esc(order.customer_phone)}
+        · ${fmt(order.total)}
+
+        <br>
+
+        <small>
+          ${new Date(order.created_at).toLocaleString()}
+        </small>
+
+        <pre>${esc(
+          JSON.stringify(
+            JSON.parse(order.items_json),
+            null,
+            2
+          )
+        )}</pre>
+      </div>
+    `).join("") || "<p>Sem pedidos.</p>";
+}
+
+function renderProducts() {
+  listEl.innerHTML =
+    currentProducts.map(product => `
+      <article class="card">
+
+        <div class="pic">
+          ${
+            product.image
+              ? `<img
+                  src="${esc(product.image)}"
+                  alt=""
+                  style="width:100%;height:100%;object-fit:cover"
+                >`
+              : "Sem imagem"
+          }
+        </div>
+
+        <div class="body">
+
+          <span class="badge">
+            ${esc(product.category)}
+          </span>
+
+          <h3>${esc(product.name)}</h3>
+
+          <div>${fmt(product.price)}</div>
+
+          <p>
+            ${
+              product.available
+                ? "Disponível"
+                : "Indisponível"
+            }
+          </p>
+
+          <button
+            type="button"
+            onclick='editProduct(${JSON.stringify(product)})'
+          >
+            Editar
+          </button>
+
+          <button
+            type="button"
+            onclick="deleteProduct(${product.id})"
+          >
+            Eliminar
+          </button>
+
+        </div>
+      </article>
+    `).join("") || "<p>Nenhum produto.</p>";
+}
+
+function editProduct(product) {
+  idEl.value = product.id;
+  nameEl.value = product.name;
+  categoryEl.value = product.category;
+  priceEl.value = product.price;
+  descriptionEl.value = product.description || "";
+  availableEl.checked = !!product.available;
+
+  selectedImage = product.image || "";
+
+  if (selectedImage) {
+    imagePreviewEl.src = selectedImage;
+    imagePreviewEl.style.display = "block";
+  } else {
+    imagePreviewEl.style.display = "none";
+  }
+
+  showMessage("A editar produto.");
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+function clearForm() {
+  idEl.value = "";
+  nameEl.value = "";
+  categoryEl.value = "";
+  priceEl.value = "";
+  descriptionEl.value = "";
+  availableEl.checked = true;
+
+  imageFileEl.value = "";
+  selectedImage = "";
+
+  imagePreviewEl.src = "";
+  imagePreviewEl.style.display = "none";
+
+  showMessage("");
+}
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = event => {
+      const image = new Image();
+
+      image.onload = () => {
+        const maxSize = 1000;
+
+        let width = image.width;
+        let height = image.height;
+
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height =
+              Math.round(
+                height * (maxSize / width)
+              );
+
+            width = maxSize;
+          } else {
+            width =
+              Math.round(
+                width * (maxSize / height)
+              );
+
+            height = maxSize;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext("2d");
+
+        context.drawImage(
+          image,
+          0,
+          0,
+          width,
+          height
+        );
+
+        resolve(
+          canvas.toDataURL(
+            "image/jpeg",
+            0.78
+          )
+        );
+      };
+
+      image.onerror = () => {
+        reject(
+          new Error("Não foi possível ler a imagem.")
+        );
+      };
+
+      image.src = event.target.result;
+    };
+
+    reader.onerror = () => {
+      reject(
+        new Error("Erro ao carregar a imagem.")
+      );
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+imageFileEl.addEventListener("change", async () => {
+  const file = imageFileEl.files[0];
+
+  if (!file) {
+    return;
+  }
+
+  try {
+    showMessage("A preparar imagem...");
+
+    selectedImage = await compressImage(file);
+
+    imagePreviewEl.src = selectedImage;
+    imagePreviewEl.style.display = "block";
+
+    showMessage("Imagem preparada.");
+  } catch (error) {
+    showMessage(error.message, true);
+  }
+});
+
+saveEl.addEventListener("click", async () => {
+  try {
+    if (!nameEl.value.trim()) {
+      throw new Error("Digite o nome do produto.");
+    }
+
+    if (!categoryEl.value.trim()) {
+      throw new Error("Digite a categoria.");
+    }
+
+    if (
+      priceEl.value === "" ||
+      Number(priceEl.value) < 0
+    ) {
+      throw new Error("Digite um preço válido.");
+    }
+
+    saveEl.disabled = true;
+
+    showMessage("A guardar produto...");
+
+    const csrfToken = await getCsrfToken();
+
+    const body = {
+      name: nameEl.value.trim(),
+      category: categoryEl.value.trim(),
+      price: Number(priceEl.value),
+      image: selectedImage,
+      description: descriptionEl.value.trim(),
+      available: availableEl.checked
+    };
+
+    const editing = Boolean(idEl.value);
+
+    const url = editing
+      ? `/api/products/${idEl.value}`
+      : "/api/products";
+
+    const method = editing
+      ? "PUT"
+      : "POST";
+
+    await api(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "CSRF-Token": csrfToken
+      },
+      body: JSON.stringify(body)
+    });
+
+    clearForm();
+
+    showMessage(
+      editing
+        ? "Produto atualizado com sucesso!"
+        : "Produto guardado com sucesso!"
+    );
+
+    await load();
+  } catch (error) {
+    showMessage(error.message, true);
+  } finally {
+    saveEl.disabled = false;
+  }
+});
+
+clearEl.addEventListener("click", clearForm);
+
+logoutEl.addEventListener("click", async () => {
+  try {
+    const csrfToken = await getCsrfToken();
+
+    await api("/api/logout", {
+      method: "POST",
+      headers: {
+        "CSRF-Token": csrfToken
+      }
+    });
+
+    location.href = "/";
+  } catch (error) {
+    showMessage(error.message, true);
+  }
+});
+
+window.editProduct = editProduct;
+
+window.deleteProduct = async function(id) {
+  if (!confirm("Eliminar este produto?")) {
+    return;
+  }
+
+  try {
+    const csrfToken = await getCsrfToken();
+
+    await api(`/api/products/${id}`, {
+      method: "DELETE",
+      headers: {
+        "CSRF-Token": csrfToken
+      }
+    });
+
+    await load();
+
+    showMessage(
+      "Produto eliminado com sucesso!"
+    );
+  } catch (error) {
+    showMessage(error.message, true);
+  }
+};
+
+load().catch(error => {
+  console.error(error);
+  location.href = "/";
+});
