@@ -19,7 +19,8 @@ const PORT = process.env.PORT || 10000;
 
 app.set("trust proxy", 1);
 
-const isProduction = process.env.NODE_ENV === "production";
+const isProduction =
+  process.env.NODE_ENV === "production";
 
 const WHATSAPP_NUMBER =
   process.env.WHATSAPP_NUMBER || "244937770994";
@@ -87,11 +88,13 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 // ======================================================
-// SESSÃO
+// SESSÃO — CORRIGIDA
 // ======================================================
 
 app.use(
   session({
+    name: "lumexa.sid",
+
     store: new pgSession({
       pool,
       tableName: "user_sessions",
@@ -104,12 +107,19 @@ app.use(
 
     resave: false,
     saveUninitialized: false,
-    proxy: isProduction,
+
+    // Importante no Render
+    proxy: true,
 
     cookie: {
       httpOnly: true,
+
+      // HTTPS no Render
       secure: isProduction,
-      sameSite: "strict",
+
+      // Lax evita problemas de sessão/redirecionamento
+      sameSite: "lax",
+
       maxAge: 1000 * 60 * 60 * 8
     }
   })
@@ -141,9 +151,8 @@ const csrfProtection = csrf({
   cookie: false
 });
 
-// Os pedidos públicos não usam CSRF.
-// Os endpoints administrativos continuam protegidos.
 app.use((req, res, next) => {
+  // Pedidos públicos não usam CSRF
   if (req.path === "/api/orders") {
     return next();
   }
@@ -261,7 +270,9 @@ function productFromRow(row) {
   let sizes = [];
 
   try {
-    sizes = JSON.parse(row.sizes_json || "[]");
+    sizes = JSON.parse(
+      row.sizes_json || "[]"
+    );
   } catch {
     sizes = [];
   }
@@ -294,14 +305,11 @@ function requireAdmin(req, res, next) {
 }
 
 // ======================================================
-// BANCO DE DADOS
+// DATABASE INIT
 // ======================================================
 
 async function initDatabase() {
-  // ----------------------------
   // ADMINS
-  // ----------------------------
-
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admins (
       id SERIAL PRIMARY KEY,
@@ -311,10 +319,7 @@ async function initDatabase() {
     )
   `);
 
-  // ----------------------------
   // PRODUCTS
-  // ----------------------------
-
   await pool.query(`
     CREATE TABLE IF NOT EXISTS products (
       id SERIAL PRIMARY KEY,
@@ -331,14 +336,7 @@ async function initDatabase() {
     )
   `);
 
-  // ==================================================
-  // MIGRAÇÃO DA TABELA PRODUCTS
-  // ==================================================
-  // Estas linhas são importantes porque a tua tabela
-  // antiga já existe no PostgreSQL.
-  // Elas adicionam as colunas que estiverem faltando.
-  // ==================================================
-
+  // MIGRAÇÃO
   await pool.query(`
     ALTER TABLE products
     ADD COLUMN IF NOT EXISTS name TEXT
@@ -384,10 +382,7 @@ async function initDatabase() {
     ADD COLUMN IF NOT EXISTS sizes_json TEXT DEFAULT '[]'
   `);
 
-  // ----------------------------
   // ORDERS
-  // ----------------------------
-
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id SERIAL PRIMARY KEY,
@@ -399,10 +394,7 @@ async function initDatabase() {
     )
   `);
 
-  // ----------------------------
   // ADMIN
-  // ----------------------------
-
   if (ADMIN_EMAIL && ADMIN_PASSWORD) {
     const existing = await pool.query(
       `SELECT id FROM admins WHERE email = $1 LIMIT 1`,
@@ -429,19 +421,15 @@ async function initDatabase() {
         ]
       );
 
-      console.log(
-        "Administrador criado."
-      );
+      console.log("Administrador criado.");
     }
   }
 
-  console.log(
-    "Banco de dados inicializado."
-  );
+  console.log("Banco de dados inicializado.");
 }
 
 // ======================================================
-// CSRF TOKEN
+// CSRF
 // ======================================================
 
 app.get("/api/csrf", (req, res) => {
@@ -451,7 +439,7 @@ app.get("/api/csrf", (req, res) => {
 });
 
 // ======================================================
-// LOGIN
+// LOGIN — CORRIGIDO
 // ======================================================
 
 app.post(
@@ -507,13 +495,51 @@ app.post(
         });
       }
 
-      req.session.adminId = admin.id;
-      req.session.adminEmail =
-        admin.email;
+      // ==================================================
+      // IMPORTANTE:
+      // cria uma nova sessão depois do login e garante
+      // que ela seja gravada no PostgreSQL antes de
+      // responder ao navegador.
+      // ==================================================
 
-      return res.json({
-        ok: true
+      req.session.regenerate((regenerateError) => {
+        if (regenerateError) {
+          console.error(
+            "Erro ao regenerar sessão:",
+            regenerateError
+          );
+
+          return res.status(500).json({
+            error:
+              "Não foi possível iniciar a sessão."
+          });
+        }
+
+        req.session.adminId =
+          admin.id;
+
+        req.session.adminEmail =
+          admin.email;
+
+        req.session.save((saveError) => {
+          if (saveError) {
+            console.error(
+              "Erro ao guardar sessão:",
+              saveError
+            );
+
+            return res.status(500).json({
+              error:
+                "Não foi possível guardar a sessão."
+            });
+          }
+
+          return res.json({
+            ok: true
+          });
+        });
       });
+
     } catch (error) {
       console.error(
         "Erro no login:",
@@ -535,8 +561,24 @@ app.post(
   "/api/logout",
   requireAdmin,
   (req, res) => {
-    req.session.destroy(() => {
-      res.clearCookie("connect.sid");
+    req.session.destroy((error) => {
+      if (error) {
+        console.error(
+          "Erro ao terminar sessão:",
+          error
+        );
+
+        return res.status(500).json({
+          error:
+            "Não foi possível terminar a sessão."
+        });
+      }
+
+      res.clearCookie("lumexa.sid", {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: "lax"
+      });
 
       res.json({
         ok: true
@@ -561,7 +603,7 @@ app.get("/api/me", (req, res) => {
     });
   }
 
-  res.status(401).json({
+  return res.status(401).json({
     authenticated: false
   });
 });
@@ -643,17 +685,7 @@ app.post(
           sizes_json
         )
         VALUES
-        (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8,
-          $9
-        )
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         RETURNING
           id,
           name,
@@ -675,9 +707,7 @@ app.post(
           product.image,
           product.available,
           product.sizeType,
-          JSON.stringify(
-            product.sizes
-          )
+          JSON.stringify(product.sizes)
         ]
       );
 
@@ -688,6 +718,7 @@ app.post(
             result.rows[0]
           )
       });
+
     } catch (error) {
       console.error(
         "ERRO AO CRIAR PRODUTO:",
@@ -771,9 +802,7 @@ app.put(
           product.image,
           product.available,
           product.sizeType,
-          JSON.stringify(
-            product.sizes
-          ),
+          JSON.stringify(product.sizes),
           id
         ]
       );
@@ -792,6 +821,7 @@ app.put(
             result.rows[0]
           )
       });
+
     } catch (error) {
       console.error(
         "ERRO AO EDITAR PRODUTO:",
@@ -847,6 +877,7 @@ app.delete(
       res.json({
         ok: true
       });
+
     } catch (error) {
       console.error(
         "ERRO AO APAGAR PRODUTO:",
@@ -862,7 +893,7 @@ app.delete(
 );
 
 // ======================================================
-// CRIAR PEDIDO — CLIENTE
+// PEDIDOS — CLIENTE
 // ======================================================
 
 app.post(
@@ -952,7 +983,6 @@ app.post(
       }
 
       const finalItems = [];
-
       let total = 0;
 
       for (
@@ -996,9 +1026,7 @@ app.post(
           );
 
           if (
-            !product.sizes.includes(
-              size
-            )
+            !product.sizes.includes(size)
           ) {
             return res.status(400).json({
               error:
@@ -1016,18 +1044,14 @@ app.post(
         finalItems.push({
           id: product.id,
           name: product.name,
-          price: Number(
-            product.price
-          ),
+          price: Number(product.price),
           quantity,
           size
         });
       }
 
       total =
-        Math.round(
-          total * 100
-        ) / 100;
+        Math.round(total * 100) / 100;
 
       await pool.query(
         `
@@ -1039,14 +1063,12 @@ app.post(
           total
         )
         VALUES
-        ($1, $2, $3, $4)
+        ($1,$2,$3,$4)
         `,
         [
           customerName,
           customerPhone,
-          JSON.stringify(
-            finalItems
-          ),
+          JSON.stringify(finalItems),
           total
         ]
       );
@@ -1089,9 +1111,7 @@ app.post(
 
       message +=
         `%0ATotal: ${encodeURIComponent(
-          total.toLocaleString(
-            "pt-PT"
-          )
+          total.toLocaleString("pt-PT")
         )} ${STORE_CURRENCY}`;
 
       const whatsappUrl =
@@ -1102,6 +1122,7 @@ app.post(
         total,
         whatsappUrl
       });
+
     } catch (error) {
       console.error(
         "ERRO AO CRIAR PEDIDO:",
@@ -1139,35 +1160,33 @@ app.get(
         `);
 
       const orders =
-        result.rows.map(
-          (row) => {
-            let items = [];
+        result.rows.map((row) => {
+          let items = [];
 
-            try {
-              items =
-                JSON.parse(
-                  row.items_json || "[]"
-                );
-            } catch {
-              items = [];
-            }
-
-            return {
-              id: row.id,
-              customerName:
-                row.customer_name,
-              customerPhone:
-                row.customer_phone,
-              items,
-              total:
-                Number(row.total),
-              createdAt:
-                row.created_at
-            };
+          try {
+            items =
+              JSON.parse(
+                row.items_json || "[]"
+              );
+          } catch {
+            items = [];
           }
-        );
+
+          return {
+            id: row.id,
+            customerName:
+              row.customer_name,
+            customerPhone:
+              row.customer_phone,
+            items,
+            total: Number(row.total),
+            createdAt:
+              row.created_at
+          };
+        });
 
       res.json(orders);
+
     } catch (error) {
       console.error(
         "ERRO AO BUSCAR PEDIDOS:",
@@ -1188,35 +1207,30 @@ app.get(
 
 app.use(
   express.static(
-    path.join(
-      __dirname,
-      "public"
-    )
+    path.join(__dirname, "public")
   )
 );
 
 // ======================================================
-// FALLBACK PARA A LOJA
+// FALLBACK
 // ======================================================
 
-app.use(
-  (req, res, next) => {
-    if (
-      req.method === "GET" &&
-      !req.path.startsWith("/api/")
-    ) {
-      return res.sendFile(
-        path.join(
-          __dirname,
-          "public",
-          "index.html"
-        )
-      );
-    }
-
-    next();
+app.use((req, res, next) => {
+  if (
+    req.method === "GET" &&
+    !req.path.startsWith("/api/")
+  ) {
+    return res.sendFile(
+      path.join(
+        __dirname,
+        "public",
+        "index.html"
+      )
+    );
   }
-);
+
+  next();
+});
 
 // ======================================================
 // ERROS
@@ -1224,14 +1238,10 @@ app.use(
 
 app.use(
   (err, req, res, next) => {
-    console.error(
-      "ERRO:",
-      err
-    );
+    console.error("ERRO:", err);
 
     if (
-      err.code ===
-      "EBADCSRFTOKEN"
+      err.code === "EBADCSRFTOKEN"
     ) {
       return res.status(403).json({
         error:
@@ -1254,14 +1264,11 @@ app.use(
 
 initDatabase()
   .then(() => {
-    app.listen(
-      PORT,
-      () => {
-        console.log(
-          `Lumexa Store rodando na porta ${PORT}`
-        );
-      }
-    );
+    app.listen(PORT, () => {
+      console.log(
+        `Lumexa Store rodando na porta ${PORT}`
+      );
+    });
   })
   .catch((error) => {
     console.error(
