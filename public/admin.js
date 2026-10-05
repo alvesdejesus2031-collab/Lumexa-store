@@ -1,217 +1,161 @@
+let products = [];
 let currentProducts = [];
-
-const idEl = document.getElementById("id");
-const nameEl = document.getElementById("name");
-const categoryEl = document.getElementById("category");
-const priceEl = document.getElementById("price");
-const imageFileEl = document.getElementById("imageFile");
-const imagePreviewEl = document.getElementById("imagePreview");
-const descriptionEl = document.getElementById("description");
-const availableEl = document.getElementById("available");
-const saveEl = document.getElementById("save");
-const clearEl = document.getElementById("clear");
-const logoutEl = document.getElementById("logout");
-const listEl = document.getElementById("list");
-const ordersEl = document.getElementById("orders");
-const messageEl = document.getElementById("message");
-
+let csrfToken = "";
 let selectedImage = "";
 
+const SIZE_OPTIONS = {
+  shirt: ["S", "M", "L", "XL", "XXL"],
+  pants: ["32", "34", "36", "38", "40", "42", "44"],
+  shoe: ["38", "39", "40", "41", "42", "43", "44"]
+};
+
+const id = (name) => document.getElementById(name);
+
+const elements = {
+  formId: id("id"),
+  name: id("name"),
+  category: id("category"),
+  price: id("price"),
+  sizeType: id("sizeType"),
+  sizesBox: id("sizesBox"),
+  sizeOptions: id("sizeOptions"),
+  imageFile: id("imageFile"),
+  imagePreview: id("imagePreview"),
+  description: id("description"),
+  available: id("available"),
+  save: id("save"),
+  clear: id("clear"),
+  message: id("message"),
+  list: id("list"),
+  orders: id("orders"),
+  logout: id("logout")
+};
+
+async function getCsrf() {
+  const response = await fetch("/api/csrf");
+
+  if (!response.ok) {
+    throw new Error("Não foi possível obter o token de segurança.");
+  }
+
+  const data = await response.json();
+  csrfToken = data.csrfToken;
+
+  return csrfToken;
+}
+
 async function api(url, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+
+  const headers = {
+    ...(options.headers || {})
+  };
+
+  if (method !== "GET") {
+    if (!csrfToken) {
+      await getCsrf();
+    }
+
+    headers["Content-Type"] = "application/json";
+    headers["CSRF-Token"] = csrfToken;
+  }
+
   const response = await fetch(url, {
     ...options,
-    credentials: "same-origin"
+    headers
   });
 
-  const text = await response.text();
+  if (response.status === 401) {
+    window.location.href = "/";
+    return null;
+  }
 
   let data = {};
 
   try {
-    data = text ? JSON.parse(text) : {};
+    data = await response.json();
   } catch {
-    throw new Error("Resposta inválida do servidor.");
-  }
-
-  if (response.status === 401) {
-    location.href = "/";
-    throw new Error("Sessão expirada.");
+    data = {};
   }
 
   if (!response.ok) {
-    throw new Error(data.error || `Erro ${response.status}`);
+    throw new Error(
+      data.error || "Ocorreu um erro."
+    );
   }
 
   return data;
 }
 
-async function getCsrfToken() {
-  const data = await api("/api/csrf");
-  return data.csrfToken;
-}
 
-function fmt(value) {
-  return new Intl.NumberFormat("pt-AO").format(value) + " AOA";
-}
+/* =========================
+   TAMANHOS
+========================= */
 
-function esc(value) {
-  return String(value).replace(
-    /[&<>"']/g,
-    character => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    })[character]
-  );
-}
+function renderSizeOptions(selectedSizes = []) {
+  const type = elements.sizeType.value;
 
-function showMessage(message, error = false) {
-  messageEl.textContent = message;
-  messageEl.style.color = error ? "crimson" : "green";
-}
+  elements.sizeOptions.innerHTML = "";
 
-async function load() {
-  await api("/api/me");
-
-  currentProducts = await api("/api/products");
-
-  renderProducts();
-
-  const orders = await api("/api/orders");
-
-  ordersEl.innerHTML =
-    orders.map(order => `
-      <div
-        class="card"
-        style="padding:15px;margin:10px 0"
-      >
-        <b>
-          #${order.id} —
-          ${esc(order.customer_name)}
-        </b>
-
-        · ${esc(order.customer_phone)}
-        · ${fmt(order.total)}
-
-        <br>
-
-        <small>
-          ${new Date(order.created_at).toLocaleString()}
-        </small>
-
-        <pre>${esc(
-          JSON.stringify(
-            JSON.parse(order.items_json),
-            null,
-            2
-          )
-        )}</pre>
-      </div>
-    `).join("") || "<p>Sem pedidos.</p>";
-}
-
-function renderProducts() {
-  listEl.innerHTML =
-    currentProducts.map(product => `
-      <article class="card">
-
-        <div class="pic">
-          ${
-            product.image
-              ? `<img
-                  src="${esc(product.image)}"
-                  alt=""
-                  style="width:100%;height:100%;object-fit:cover"
-                >`
-              : "Sem imagem"
-          }
-        </div>
-
-        <div class="body">
-
-          <span class="badge">
-            ${esc(product.category)}
-          </span>
-
-          <h3>${esc(product.name)}</h3>
-
-          <div>${fmt(product.price)}</div>
-
-          <p>
-            ${
-              product.available
-                ? "Disponível"
-                : "Indisponível"
-            }
-          </p>
-
-          <button
-            type="button"
-            onclick='editProduct(${JSON.stringify(product)})'
-          >
-            Editar
-          </button>
-
-          <button
-            type="button"
-            onclick="deleteProduct(${product.id})"
-          >
-            Eliminar
-          </button>
-
-        </div>
-      </article>
-    `).join("") || "<p>Nenhum produto.</p>";
-}
-
-function editProduct(product) {
-  idEl.value = product.id;
-  nameEl.value = product.name;
-  categoryEl.value = product.category;
-  priceEl.value = product.price;
-  descriptionEl.value = product.description || "";
-  availableEl.checked = !!product.available;
-
-  selectedImage = product.image || "";
-
-  if (selectedImage) {
-    imagePreviewEl.src = selectedImage;
-    imagePreviewEl.style.display = "block";
-  } else {
-    imagePreviewEl.style.display = "none";
+  if (!type || !SIZE_OPTIONS[type]) {
+    elements.sizesBox.style.display = "none";
+    return;
   }
 
-  showMessage("A editar produto.");
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
+  elements.sizesBox.style.display = "block";
+
+  SIZE_OPTIONS[type].forEach(size => {
+    const label = document.createElement("label");
+
+    label.style.cssText = `
+      display:flex;
+      align-items:center;
+      gap:6px;
+      padding:8px 12px;
+      border:1px solid #ddd;
+      border-radius:10px;
+      cursor:pointer;
+      background:#fff;
+    `;
+
+    const checkbox = document.createElement("input");
+
+    checkbox.type = "checkbox";
+    checkbox.value = size;
+    checkbox.dataset.size = size;
+
+    if (selectedSizes.includes(size)) {
+      checkbox.checked = true;
+    }
+
+    const text = document.createElement("span");
+    text.textContent = size;
+
+    label.appendChild(checkbox);
+    label.appendChild(text);
+
+    elements.sizeOptions.appendChild(label);
   });
 }
 
-function clearForm() {
-  idEl.value = "";
-  nameEl.value = "";
-  categoryEl.value = "";
-  priceEl.value = "";
-  descriptionEl.value = "";
-  availableEl.checked = true;
-
-  imageFileEl.value = "";
-  selectedImage = "";
-
-  imagePreviewEl.src = "";
-  imagePreviewEl.style.display = "none";
-
-  showMessage("");
+function getSelectedSizes() {
+  return [
+    ...elements.sizeOptions.querySelectorAll(
+      'input[type="checkbox"]:checked'
+    )
+  ].map(input => input.value);
 }
+
+
+/* =========================
+   IMAGEM
+========================= */
 
 function compressImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onload = event => {
+    reader.onload = () => {
       const image = new Image();
 
       image.onload = () => {
@@ -224,26 +168,28 @@ function compressImage(file) {
           if (width > height) {
             height =
               Math.round(
-                height * (maxSize / width)
+                height * maxSize / width
               );
 
             width = maxSize;
           } else {
             width =
               Math.round(
-                width * (maxSize / height)
+                width * maxSize / height
               );
 
             height = maxSize;
           }
         }
 
-        const canvas = document.createElement("canvas");
+        const canvas =
+          document.createElement("canvas");
 
         canvas.width = width;
         canvas.height = height;
 
-        const context = canvas.getContext("2d");
+        const context =
+          canvas.getContext("2d");
 
         context.drawImage(
           image,
@@ -263,16 +209,20 @@ function compressImage(file) {
 
       image.onerror = () => {
         reject(
-          new Error("Não foi possível ler a imagem.")
+          new Error(
+            "Não foi possível carregar a imagem."
+          )
         );
       };
 
-      image.src = event.target.result;
+      image.src = reader.result;
     };
 
     reader.onerror = () => {
       reject(
-        new Error("Erro ao carregar a imagem.")
+        new Error(
+          "Não foi possível ler a imagem."
+        )
       );
     };
 
@@ -280,141 +230,701 @@ function compressImage(file) {
   });
 }
 
-imageFileEl.addEventListener("change", async () => {
-  const file = imageFileEl.files[0];
+elements.imageFile.addEventListener(
+  "change",
+  async () => {
+    const file =
+      elements.imageFile.files[0];
 
-  if (!file) {
+    if (!file) {
+      return;
+    }
+
+    try {
+      if (!file.type.startsWith("image/")) {
+        throw new Error(
+          "Escolha um ficheiro de imagem."
+        );
+      }
+
+      selectedImage =
+        await compressImage(file);
+
+      elements.imagePreview.src =
+        selectedImage;
+
+      elements.imagePreview.style.display =
+        "block";
+
+      elements.message.textContent =
+        "Imagem carregada.";
+    } catch (error) {
+      selectedImage = "";
+
+      elements.imagePreview.src = "";
+      elements.imagePreview.style.display =
+        "none";
+
+      elements.message.textContent =
+        error.message;
+    }
+  }
+);
+
+
+/* =========================
+   TAMANHO
+========================= */
+
+elements.sizeType.addEventListener(
+  "change",
+  () => {
+    renderSizeOptions([]);
+  }
+);
+
+
+/* =========================
+   LIMPAR FORMULÁRIO
+========================= */
+
+function clearForm() {
+  elements.formId.value = "";
+  elements.name.value = "";
+  elements.category.value = "";
+  elements.price.value = "";
+  elements.description.value = "";
+
+  elements.sizeType.value = "";
+
+  renderSizeOptions([]);
+
+  elements.available.checked = true;
+
+  elements.imageFile.value = "";
+
+  selectedImage = "";
+
+  elements.imagePreview.src = "";
+  elements.imagePreview.style.display =
+    "none";
+
+  elements.message.textContent = "";
+
+  elements.save.textContent =
+    "Guardar produto";
+}
+
+elements.clear.addEventListener(
+  "click",
+  clearForm
+);
+
+
+/* =========================
+   EDITAR PRODUTO
+========================= */
+
+function editProduct(product) {
+  elements.formId.value = product.id;
+  elements.name.value =
+    product.name || "";
+
+  elements.category.value =
+    product.category || "";
+
+  elements.price.value =
+    product.price ?? "";
+
+  elements.description.value =
+    product.description || "";
+
+  elements.available.checked =
+    !!product.available;
+
+  elements.sizeType.value =
+    product.sizeType || "";
+
+  renderSizeOptions(
+    Array.isArray(product.sizes)
+      ? product.sizes
+      : []
+  );
+
+  selectedImage =
+    product.image || "";
+
+  if (selectedImage) {
+    elements.imagePreview.src =
+      selectedImage;
+
+    elements.imagePreview.style.display =
+      "block";
+  } else {
+    elements.imagePreview.src = "";
+    elements.imagePreview.style.display =
+      "none";
+  }
+
+  elements.save.textContent =
+    "Atualizar produto";
+
+  elements.message.textContent =
+    "Editando produto.";
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+
+/* =========================
+   APAGAR PRODUTO
+========================= */
+
+async function deleteProduct(productId) {
+  const product =
+    currentProducts.find(
+      item =>
+        Number(item.id) ===
+        Number(productId)
+    );
+
+  if (!product) {
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      `Apagar "${product.name}"?`
+    );
+
+  if (!confirmed) {
     return;
   }
 
   try {
-    showMessage("A preparar imagem...");
+    await api(
+      `/api/products/${product.id}`,
+      {
+        method: "DELETE"
+      }
+    );
 
-    selectedImage = await compressImage(file);
+    elements.message.textContent =
+      "Produto apagado.";
 
-    imagePreviewEl.src = selectedImage;
-    imagePreviewEl.style.display = "block";
-
-    showMessage("Imagem preparada.");
+    await loadProducts();
   } catch (error) {
-    showMessage(error.message, true);
+    elements.message.textContent =
+      error.message;
   }
-});
+}
 
-saveEl.addEventListener("click", async () => {
-  try {
-    if (!nameEl.value.trim()) {
-      throw new Error("Digite o nome do produto.");
+
+/* =========================
+   EVENTOS DOS PRODUTOS
+========================= */
+
+elements.list.addEventListener(
+  "click",
+  event => {
+    const button =
+      event.target.closest(
+        "button[data-action]"
+      );
+
+    if (!button) {
+      return;
     }
 
-    if (!categoryEl.value.trim()) {
-      throw new Error("Digite a categoria.");
+    const productId =
+      Number(button.dataset.id);
+
+    const product =
+      currentProducts.find(
+        item =>
+          Number(item.id) ===
+          productId
+      );
+
+    if (!product) {
+      return;
     }
 
     if (
-      priceEl.value === "" ||
-      Number(priceEl.value) < 0
+      button.dataset.action ===
+      "edit"
     ) {
-      throw new Error("Digite um preço válido.");
+      editProduct(product);
     }
 
-    saveEl.disabled = true;
-
-    showMessage("A guardar produto...");
-
-    const csrfToken = await getCsrfToken();
-
-    const body = {
-      name: nameEl.value.trim(),
-      category: categoryEl.value.trim(),
-      price: Number(priceEl.value),
-      image: selectedImage,
-      description: descriptionEl.value.trim(),
-      available: availableEl.checked
-    };
-
-    const editing = Boolean(idEl.value);
-
-    const url = editing
-      ? `/api/products/${idEl.value}`
-      : "/api/products";
-
-    const method = editing
-      ? "PUT"
-      : "POST";
-
-    await api(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        "CSRF-Token": csrfToken
-      },
-      body: JSON.stringify(body)
-    });
-
-    clearForm();
-
-    showMessage(
-      editing
-        ? "Produto atualizado com sucesso!"
-        : "Produto guardado com sucesso!"
-    );
-
-    await load();
-  } catch (error) {
-    showMessage(error.message, true);
-  } finally {
-    saveEl.disabled = false;
+    if (
+      button.dataset.action ===
+      "delete"
+    ) {
+      deleteProduct(productId);
+    }
   }
-});
+);
 
-clearEl.addEventListener("click", clearForm);
 
-logoutEl.addEventListener("click", async () => {
-  try {
-    const csrfToken = await getCsrfToken();
+/* =========================
+   GUARDAR PRODUTO
+========================= */
 
-    await api("/api/logout", {
-      method: "POST",
-      headers: {
-        "CSRF-Token": csrfToken
+elements.save.addEventListener(
+  "click",
+  async () => {
+    try {
+      const name =
+        elements.name.value.trim();
+
+      const category =
+        elements.category.value.trim();
+
+      const price =
+        Number(elements.price.value);
+
+      const sizeType =
+        elements.sizeType.value;
+
+      const sizes =
+        getSelectedSizes();
+
+      if (!name) {
+        throw new Error(
+          "Digite o nome do produto."
+        );
       }
-    });
 
-    location.href = "/";
-  } catch (error) {
-    showMessage(error.message, true);
+      if (!category) {
+        throw new Error(
+          "Digite a categoria."
+        );
+      }
+
+      if (
+        !Number.isInteger(price) ||
+        price < 0
+      ) {
+        throw new Error(
+          "Digite um preço válido."
+        );
+      }
+
+      if (
+        sizeType &&
+        sizes.length === 0
+      ) {
+        throw new Error(
+          "Selecione pelo menos um tamanho."
+        );
+      }
+
+      const product = {
+        name,
+        category,
+        price,
+        description:
+          elements.description.value,
+
+        image: selectedImage,
+
+        available:
+          elements.available.checked,
+
+        sizeType,
+        sizes
+      };
+
+      const productId =
+        elements.formId.value;
+
+      if (productId) {
+        await api(
+          `/api/products/${productId}`,
+          {
+            method: "PUT",
+            body: JSON.stringify(product)
+          }
+        );
+
+        elements.message.textContent =
+          "Produto atualizado com sucesso.";
+      } else {
+        await api(
+          "/api/products",
+          {
+            method: "POST",
+            body: JSON.stringify(product)
+          }
+        );
+
+        elements.message.textContent =
+          "Produto criado com sucesso.";
+      }
+
+      clearForm();
+
+      await loadProducts();
+
+    } catch (error) {
+      elements.message.textContent =
+        error.message;
+    }
   }
-});
+);
 
-window.editProduct = editProduct;
 
-window.deleteProduct = async function(id) {
-  if (!confirm("Eliminar este produto?")) {
+/* =========================
+   MOSTRAR PRODUTOS
+========================= */
+
+function renderProducts() {
+  elements.list.innerHTML = "";
+
+  if (!currentProducts.length) {
+    elements.list.innerHTML =
+      "<p>Nenhum produto cadastrado.</p>";
+
     return;
   }
 
-  try {
-    const csrfToken = await getCsrfToken();
+  currentProducts.forEach(product => {
+    const card =
+      document.createElement("article");
 
-    await api(`/api/products/${id}`, {
-      method: "DELETE",
-      headers: {
-        "CSRF-Token": csrfToken
-      }
-    });
+    card.className = "panel";
 
-    await load();
+    card.style.cssText = `
+      width:100%;
+      max-width:420px;
+    `;
 
-    showMessage(
-      "Produto eliminado com sucesso!"
+    if (product.image) {
+      const image =
+        document.createElement("img");
+
+      image.src = product.image;
+      image.alt = product.name;
+
+      image.style.cssText = `
+        width:100%;
+        height:220px;
+        object-fit:cover;
+        border-radius:14px;
+        margin-bottom:12px;
+      `;
+
+      card.appendChild(image);
+    }
+
+    const title =
+      document.createElement("h3");
+
+    title.textContent =
+      product.name;
+
+    card.appendChild(title);
+
+    const category =
+      document.createElement("p");
+
+    category.textContent =
+      `Categoria: ${product.category}`;
+
+    card.appendChild(category);
+
+    const price =
+      document.createElement("p");
+
+    price.textContent =
+      `Preço: ${Number(product.price).toLocaleString("pt-AO")} AOA`;
+
+    card.appendChild(price);
+
+    const availability =
+      document.createElement("p");
+
+    availability.textContent =
+      product.available
+        ? "Disponível"
+        : "Indisponível";
+
+    card.appendChild(
+      availability
     );
-  } catch (error) {
-    showMessage(error.message, true);
-  }
-};
 
-load().catch(error => {
-  console.error(error);
-  location.href = "/";
-});
+    if (
+      product.sizeType &&
+      Array.isArray(product.sizes) &&
+      product.sizes.length
+    ) {
+      const sizes =
+        document.createElement("p");
+
+      sizes.textContent =
+        `Tamanhos: ${product.sizes.join(", ")}`;
+
+      card.appendChild(sizes);
+    }
+
+    if (product.description) {
+      const description =
+        document.createElement("p");
+
+      description.textContent =
+        product.description;
+
+      card.appendChild(description);
+    }
+
+    const buttons =
+      document.createElement("div");
+
+    buttons.style.cssText = `
+      display:flex;
+      gap:10px;
+      margin-top:15px;
+      flex-wrap:wrap;
+    `;
+
+    const editButton =
+      document.createElement("button");
+
+    editButton.type = "button";
+    editButton.textContent = "Editar";
+    editButton.dataset.action = "edit";
+    editButton.dataset.id =
+      product.id;
+
+    const deleteButton =
+      document.createElement("button");
+
+    deleteButton.type = "button";
+    deleteButton.textContent = "Apagar";
+    deleteButton.dataset.action =
+      "delete";
+    deleteButton.dataset.id =
+      product.id;
+
+    deleteButton.className =
+      "ghost";
+
+    buttons.appendChild(editButton);
+    buttons.appendChild(deleteButton);
+
+    card.appendChild(buttons);
+
+    elements.list.appendChild(card);
+  });
+}
+
+
+/* =========================
+   CARREGAR PRODUTOS
+========================= */
+
+async function loadProducts() {
+  try {
+    const data =
+      await api("/api/products");
+
+    if (!data) {
+      return;
+    }
+
+    products =
+      Array.isArray(data)
+        ? data
+        : [];
+
+    currentProducts = products;
+
+    renderProducts();
+
+  } catch (error) {
+    elements.list.innerHTML =
+      `<p>${error.message}</p>`;
+  }
+}
+
+
+/* =========================
+   PEDIDOS
+========================= */
+
+function renderOrders(orders) {
+  elements.orders.innerHTML = "";
+
+  if (!orders.length) {
+    elements.orders.innerHTML =
+      "<p>Nenhum pedido recebido.</p>";
+
+    return;
+  }
+
+  orders.forEach(order => {
+    const box =
+      document.createElement("div");
+
+    box.className = "panel";
+
+    box.style.cssText = `
+      width:100%;
+      margin:12px 0;
+    `;
+
+    const title =
+      document.createElement("h3");
+
+    title.textContent =
+      `Pedido #${order.id}`;
+
+    box.appendChild(title);
+
+    const customer =
+      document.createElement("p");
+
+    customer.textContent =
+      `Cliente: ${order.customer_name}`;
+
+    box.appendChild(customer);
+
+    const phone =
+      document.createElement("p");
+
+    phone.textContent =
+      `Telefone: ${order.customer_phone}`;
+
+    box.appendChild(phone);
+
+    const status =
+      document.createElement("p");
+
+    status.textContent =
+      `Estado: ${order.status}`;
+
+    box.appendChild(status);
+
+    const total =
+      document.createElement("p");
+
+    total.textContent =
+      `Total: ${Number(order.total).toLocaleString("pt-AO")} AOA`;
+
+    box.appendChild(total);
+
+    let items = [];
+
+    try {
+      items =
+        JSON.parse(
+          order.items_json || "[]"
+        );
+    } catch {
+      items = [];
+    }
+
+    if (items.length) {
+      const list =
+        document.createElement("ul");
+
+      items.forEach(item => {
+        const li =
+          document.createElement("li");
+
+        let text =
+          `${item.name} x${item.qty}`;
+
+        if (item.size) {
+          text +=
+            ` — Tamanho: ${item.size}`;
+        }
+
+        text +=
+          ` — ${Number(
+            item.price * item.qty
+          ).toLocaleString("pt-AO")} AOA`;
+
+        li.textContent = text;
+
+        list.appendChild(li);
+      });
+
+      box.appendChild(list);
+    }
+
+    elements.orders.appendChild(box);
+  });
+}
+
+async function loadOrders() {
+  try {
+    const data =
+      await api("/api/orders");
+
+    if (!data) {
+      return;
+    }
+
+    renderOrders(
+      Array.isArray(data)
+        ? data
+        : []
+    );
+
+  } catch (error) {
+    elements.orders.innerHTML =
+      `<p>${error.message}</p>`;
+  }
+}
+
+
+/* =========================
+   LOGOUT
+========================= */
+
+elements.logout.addEventListener(
+  "click",
+  async () => {
+    try {
+      await api(
+        "/api/logout",
+        {
+          method: "POST",
+          body: JSON.stringify({})
+        }
+      );
+
+      window.location.href = "/";
+
+    } catch (error) {
+      elements.message.textContent =
+        error.message;
+    }
+  }
+);
+
+
+/* =========================
+   INICIALIZAÇÃO
+========================= */
+
+async function init() {
+  try {
+    await getCsrf();
+
+    await loadProducts();
+
+    await loadOrders();
+
+  } catch (error) {
+    elements.message.textContent =
+      error.message;
+  }
+}
+
+init();
