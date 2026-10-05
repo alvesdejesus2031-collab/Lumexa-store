@@ -7,237 +7,40 @@ const { Pool } = require("pg");
 const bcrypt = require("bcrypt");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const csrf = require("csurf");
-const { authenticator } = require("otplib");
+const csurf = require("csurf");
 const path = require("path");
 
 const app = express();
 
 app.set("trust proxy", 1);
 
-const port = Number(process.env.PORT || 3000);
-const whatsapp =
-  process.env.WHATSAPP_NUMBER || "244937770994";
+const PORT = process.env.PORT || 3000;
 
-if (!process.env.DATABASE_URL) {
-  console.error("DATABASE_URL is required.");
-  process.exit(1);
-}
-
-if (!process.env.SESSION_SECRET) {
-  console.error("SESSION_SECRET is required.");
-  process.exit(1);
-}
-
-if (
-  !process.env.ADMIN_EMAIL ||
-  !process.env.ADMIN_PASSWORD
-) {
-  console.error(
-    "ADMIN_EMAIL and ADMIN_PASSWORD are required."
-  );
-  process.exit(1);
-}
+const isProduction =
+  process.env.NODE_ENV === "production";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-
-  ssl:
-    process.env.NODE_ENV === "production"
-      ? { rejectUnauthorized: false }
-      : false
+  ssl: isProduction
+    ? { rejectUnauthorized: false }
+    : false
 });
 
-async function initDatabase() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS admins (
-      id SERIAL PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      totp_secret TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+/* =========================
+   CONFIGURAÇÃO
+========================= */
 
-    CREATE TABLE IF NOT EXISTS products (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      category TEXT NOT NULL,
-      description TEXT DEFAULT '',
-      price INTEGER NOT NULL,
-      image TEXT DEFAULT '',
-      available BOOLEAN NOT NULL DEFAULT TRUE,
-      size_type TEXT NOT NULL DEFAULT '',
-      sizes_json TEXT NOT NULL DEFAULT '[]',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+const WHATSAPP_NUMBER =
+  process.env.WHATSAPP_NUMBER || "244937770994";
 
-    CREATE TABLE IF NOT EXISTS orders (
-      id SERIAL PRIMARY KEY,
-      customer_name TEXT NOT NULL,
-      customer_phone TEXT NOT NULL,
-      items_json TEXT NOT NULL,
-      total INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'new',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+const STORE_CURRENCY =
+  process.env.STORE_CURRENCY || "AOA";
 
-  /*
-    Compatibilidade com instalações antigas.
-    Se a tabela products já existia, estas colunas
-    serão adicionadas sem apagar os produtos existentes.
-  */
+const ADMIN_EMAIL =
+  process.env.ADMIN_EMAIL || "";
 
-  await pool.query(`
-    ALTER TABLE products
-    ADD COLUMN IF NOT EXISTS size_type TEXT NOT NULL DEFAULT ''
-  `);
-
-  await pool.query(`
-    ALTER TABLE products
-    ADD COLUMN IF NOT EXISTS sizes_json TEXT NOT NULL DEFAULT '[]'
-  `);
-
-  const email = String(process.env.ADMIN_EMAIL)
-    .toLowerCase()
-    .trim();
-
-  const existing = await pool.query(
-    "SELECT id FROM admins WHERE email = $1",
-    [email]
-  );
-
-  if (existing.rows.length === 0) {
-    const passwordHash = await bcrypt.hash(
-      String(process.env.ADMIN_PASSWORD),
-      12
-    );
-
-    await pool.query(
-      `INSERT INTO admins
-       (email, password_hash, totp_secret)
-       VALUES ($1, $2, $3)`,
-      [
-        email,
-        passwordHash,
-        process.env.ADMIN_TOTP_SECRET || null
-      ]
-    );
-
-    console.log("Initial admin created.");
-  }
-}
-
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-
-        imgSrc: [
-          "'self'",
-          "data:",
-          "https:"
-        ],
-
-        styleSrc: [
-          "'self'",
-          "'unsafe-inline'"
-        ],
-
-        scriptSrc: ["'self'"],
-
-        connectSrc: ["'self'"],
-
-        frameAncestors: ["'none'"],
-
-        objectSrc: ["'none'"],
-
-        baseUri: ["'self'"],
-
-        formAction: ["'self'"]
-      }
-    },
-
-    referrerPolicy: {
-      policy: "no-referrer"
-    }
-  })
-);
-
-app.use(
-  express.json({
-    limit: "2mb"
-  })
-);
-
-app.use(
-  express.urlencoded({
-    extended: false,
-    limit: "50kb"
-  })
-);
-
-app.use(
-  session({
-    store: new pgSession({
-      pool,
-      tableName: "user_sessions",
-      createTableIfMissing: true
-    }),
-
-    secret: process.env.SESSION_SECRET,
-
-    resave: false,
-
-    saveUninitialized: false,
-
-    proxy: true,
-
-    cookie: {
-      httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-      maxAge: 1000 * 60 * 60 * 8
-    }
-  })
-);
-
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 8,
-  standardHeaders: true,
-  legacyHeaders: false,
-
-  message: {
-    error:
-      "Too many login attempts. Try again later."
-  }
-});
-
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 120,
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-app.use("/api/", apiLimiter);
-
-const csrfProtection = csrf();
-
-app.use(csrfProtection);
-
-function requireAdmin(req, res, next) {
-  if (!req.session.adminId) {
-    return res.status(401).json({
-      error: "Unauthorized"
-    });
-  }
-
-  next();
-}
+const ADMIN_PASSWORD =
+  process.env.ADMIN_PASSWORD || "";
 
 const ALLOWED_SIZE_TYPES = [
   "",
@@ -276,188 +79,595 @@ const ALLOWED_SIZES = {
   ]
 };
 
-function cleanSizes(sizeType, sizes) {
-  if (!ALLOWED_SIZE_TYPES.includes(sizeType)) {
-    return {
-      sizeType: "",
-      sizes: []
-    };
+/* =========================
+   APP
+========================= */
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+
+        scriptSrc: [
+          "'self'"
+        ],
+
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'"
+        ],
+
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https:"
+        ],
+
+        connectSrc: [
+          "'self'"
+        ],
+
+        fontSrc: [
+          "'self'",
+          "data:",
+          "https:"
+        ],
+
+        objectSrc: [
+          "'none'"
+        ],
+
+        baseUri: [
+          "'self'"
+        ],
+
+        frameAncestors: [
+          "'none'"
+        ]
+      }
+    }
+  })
+);
+
+app.use(
+  express.json({
+    limit: "2mb"
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: false,
+    limit: "2mb"
+  })
+);
+
+/* =========================
+   RATE LIMIT
+========================= */
+
+const loginLimiter =
+  rateLimit({
+    windowMs:
+      15 * 60 * 1000,
+
+    max: 10,
+
+    standardHeaders: true,
+
+    legacyHeaders: false,
+
+    message: {
+      error:
+        "Muitas tentativas. Aguarde alguns minutos."
+    }
+  });
+
+const orderLimiter =
+  rateLimit({
+    windowMs:
+      10 * 60 * 1000,
+
+    max: 30,
+
+    standardHeaders: true,
+
+    legacyHeaders: false,
+
+    message: {
+      error:
+        "Muitos pedidos. Aguarde alguns minutos."
+    }
+  });
+
+/* =========================
+   SESSÃO
+========================= */
+
+app.use(
+  session({
+    store: new pgSession({
+      pool,
+
+      tableName:
+        "user_sessions",
+
+      createTableIfMissing:
+        true
+    }),
+
+    secret:
+      process.env.SESSION_SECRET ||
+      "change-this-secret",
+
+    resave: false,
+
+    saveUninitialized: false,
+
+    proxy: true,
+
+    cookie: {
+      httpOnly: true,
+
+      secure: isProduction,
+
+      sameSite: "strict",
+
+      maxAge:
+        1000 *
+        60 *
+        60 *
+        8
+    }
+  })
+);
+
+/* =========================
+   CSRF
+========================= */
+
+const csrfProtection =
+  csurf({
+    cookie: false
+  });
+
+/*
+  O endpoint público de pedidos
+  NÃO usa CSRF porque é usado pelo
+  cliente sem autenticação.
+
+  Os endpoints administrativos continuam
+  protegidos por CSRF.
+*/
+
+app.use(
+  (req, res, next) => {
+    if (
+      req.path ===
+      "/api/orders"
+    ) {
+      return next();
+    }
+
+    return csrfProtection(
+      req,
+      res,
+      next
+    );
+  }
+);
+
+/* =========================
+   BANCO DE DADOS
+========================= */
+
+async function initDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admins (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS products (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      price NUMERIC(14,2) NOT NULL DEFAULT 0,
+      image TEXT NOT NULL DEFAULT '',
+      available BOOLEAN NOT NULL DEFAULT TRUE,
+      size_type TEXT NOT NULL DEFAULT '',
+      sizes_json TEXT NOT NULL DEFAULT '[]',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      customer_name TEXT NOT NULL,
+      customer_phone TEXT NOT NULL,
+      items_json TEXT NOT NULL,
+      total NUMERIC(14,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  /* Compatibilidade com bases antigas */
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS
+    size_type TEXT NOT NULL DEFAULT ''
+  `);
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS
+    sizes_json TEXT NOT NULL DEFAULT '[]'
+  `);
+
+  if (
+    ADMIN_EMAIL &&
+    ADMIN_PASSWORD
+  ) {
+    const existing =
+      await pool.query(
+        "SELECT id FROM admins WHERE email = $1 LIMIT 1",
+        [ADMIN_EMAIL]
+      );
+
+    if (
+      existing.rows.length === 0
+    ) {
+      const hash =
+        await bcrypt.hash(
+          ADMIN_PASSWORD,
+          12
+        );
+
+      await pool.query(
+        `
+        INSERT INTO admins
+        (email, password_hash)
+        VALUES ($1, $2)
+        `,
+        [
+          ADMIN_EMAIL,
+          hash
+        ]
+      );
+    }
+  }
+}
+
+/* =========================
+   FUNÇÕES AUXILIARES
+========================= */
+
+function cleanText(
+  value,
+  maxLength = 5000
+) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return "";
+  }
+
+  return String(value)
+    .trim()
+    .slice(0, maxLength);
+}
+
+function cleanSizes(
+  sizeType,
+  sizes
+) {
+  if (
+    !ALLOWED_SIZE_TYPES.includes(
+      sizeType
+    )
+  ) {
+    return [];
   }
 
   if (!sizeType) {
-    return {
-      sizeType: "",
-      sizes: []
-    };
+    return [];
   }
 
   if (!Array.isArray(sizes)) {
-    return {
-      sizeType,
-      sizes: []
-    };
+    return [];
   }
 
-  const allowed = ALLOWED_SIZES[sizeType];
+  const allowed =
+    ALLOWED_SIZES[sizeType];
 
-  const clean = [
+  return [
     ...new Set(
       sizes
-        .map(x => String(x))
-        .filter(x => allowed.includes(x))
+        .map(value =>
+          String(value)
+        )
+        .filter(value =>
+          allowed.includes(value)
+        )
     )
   ];
-
-  return {
-    sizeType,
-    sizes: clean
-  };
 }
 
-function validateProduct(product) {
-  if (
-    !product ||
-    typeof product.name !== "string" ||
-    product.name.trim().length < 1 ||
-    typeof product.category !== "string" ||
-    product.category.trim().length < 1 ||
-    !Number.isInteger(Number(product.price)) ||
-    Number(product.price) < 0
-  ) {
-    return false;
-  }
-
-  if (
-    product.sizeType !== undefined &&
-    !ALLOWED_SIZE_TYPES.includes(
-      String(product.sizeType)
+function cleanProduct(
+  body
+) {
+  const sizeType =
+    ALLOWED_SIZE_TYPES.includes(
+      body.sizeType
     )
-  ) {
-    return false;
-  }
+      ? body.sizeType
+      : "";
 
-  return true;
-}
+  const sizes =
+    cleanSizes(
+      sizeType,
+      body.sizes
+    );
 
-function cleanProduct(product) {
-  const sizeInfo = cleanSizes(
-    String(product.sizeType || ""),
-    product.sizes
-  );
+  const price =
+    Number(body.price);
 
   return {
-    name: product.name
-      .trim()
-      .slice(0, 120),
+    name: cleanText(
+      body.name,
+      200
+    ),
 
-    category: product.category
-      .trim()
-      .slice(0, 80),
+    category: cleanText(
+      body.category,
+      100
+    ),
 
-    description: String(
-      product.description || ""
-    ).slice(0, 1000),
+    type: cleanText(
+      body.type,
+      100
+    ),
 
-    price: Number(product.price),
+    description: cleanText(
+      body.description,
+      5000
+    ),
 
-    image: String(
-      product.image || ""
-    ).slice(0, 2000000),
+    price:
+      Number.isFinite(price) &&
+      price >= 0
+        ? price
+        : 0,
 
-    available: !!product.available,
+    image: cleanText(
+      body.image,
+      1500000
+    ),
 
-    sizeType: sizeInfo.sizeType,
+    available:
+      body.available !== false,
 
-    sizes: sizeInfo.sizes
+    sizeType,
+
+    sizes
   };
 }
 
-app.get("/api/csrf", (req, res) => {
-  res.json({
-    csrfToken: req.csrfToken()
-  });
-});
+function validateProduct(
+  product
+) {
+  if (!product.name) {
+    return "O nome do produto é obrigatório.";
+  }
+
+  if (!product.category) {
+    return "A categoria é obrigatória.";
+  }
+
+  if (
+    !Number.isFinite(
+      product.price
+    ) ||
+    product.price < 0
+  ) {
+    return "O preço é inválido.";
+  }
+
+  if (
+    product.sizeType &&
+    product.sizes.length === 0
+  ) {
+    return "Selecione pelo menos um tamanho.";
+  }
+
+  return null;
+}
+
+function productFromRow(
+  row
+) {
+  let sizes = [];
+
+  try {
+    sizes =
+      JSON.parse(
+        row.sizes_json || "[]"
+      );
+  } catch {
+    sizes = [];
+  }
+
+  return {
+    id: row.id,
+
+    name: row.name,
+
+    category:
+      row.category,
+
+    type:
+      row.type,
+
+    description:
+      row.description,
+
+    price:
+      Number(row.price),
+
+    image:
+      row.image,
+
+    available:
+      Boolean(row.available),
+
+    sizeType:
+      row.size_type || "",
+
+    sizes:
+      Array.isArray(sizes)
+        ? sizes
+        : []
+  };
+}
+
+function requireAdmin(
+  req,
+  res,
+  next
+) {
+  if (
+    !req.session ||
+    !req.session.adminId
+  ) {
+    return res
+      .status(401)
+      .json({
+        error:
+          "Não autorizado."
+      });
+  }
+
+  next();
+}
+
+/* =========================
+   CSRF TOKEN
+========================= */
+
+app.get(
+  "/api/csrf",
+  (req, res) => {
+    res.json({
+      csrfToken:
+        req.csrfToken()
+    });
+  }
+);
+
+/* =========================
+   AUTENTICAÇÃO
+========================= */
 
 app.post(
   "/api/login",
   loginLimiter,
   async (req, res) => {
     try {
-      const {
-        email,
-        password,
-        code
-      } = req.body || {};
+      const email =
+        cleanText(
+          req.body.email,
+          200
+        ).toLowerCase();
 
-      const result = await pool.query(
-        "SELECT * FROM admins WHERE email = $1",
-        [
-          String(email || "")
-            .toLowerCase()
-            .trim()
-        ]
-      );
-
-      const admin = result.rows[0];
+      const password =
+        String(
+          req.body.password || ""
+        );
 
       if (
-        !admin ||
-        !(await bcrypt.compare(
-          String(password || ""),
-          admin.password_hash
-        ))
+        !email ||
+        !password
       ) {
-        return res.status(401).json({
-          error: "Invalid credentials"
-        });
-      }
-
-      if (admin.totp_secret) {
-        if (
-          !code ||
-          !authenticator.check(
-            String(code),
-            admin.totp_secret
-          )
-        ) {
-          return res.status(401).json({
+        return res
+          .status(400)
+          .json({
             error:
-              "Two-factor authentication required"
+              "Email e senha são obrigatórios."
           });
-        }
       }
 
-      req.session.regenerate(err => {
-        if (err) {
-          console.error(err);
+      const result =
+        await pool.query(
+          `
+          SELECT *
+          FROM admins
+          WHERE LOWER(email) = LOWER($1)
+          LIMIT 1
+          `,
+          [email]
+        );
 
-          return res.status(500).json({
-            error: "Session error"
+      if (
+        result.rows.length === 0
+      ) {
+        return res
+          .status(401)
+          .json({
+            error:
+              "Credenciais inválidas."
           });
-        }
+      }
 
-        req.session.adminId = admin.id;
+      const admin =
+        result.rows[0];
 
-        req.session.save(saveError => {
-          if (saveError) {
-            console.error(saveError);
+      const valid =
+        await bcrypt.compare(
+          password,
+          admin.password_hash
+        );
 
-            return res.status(500).json({
-              error: "Session save error"
-            });
-          }
-
-          res.json({
-            ok: true
+      if (!valid) {
+        return res
+          .status(401)
+          .json({
+            error:
+              "Credenciais inválidas."
           });
-        });
+      }
+
+      req.session.adminId =
+        admin.id;
+
+      req.session.adminEmail =
+        admin.email;
+
+      res.json({
+        ok: true
       });
     } catch (error) {
-      console.error(error);
+      console.error(
+        "LOGIN ERROR:",
+        error
+      );
 
-      res.status(500).json({
-        error: "Login error"
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            "Erro interno."
+        });
     }
   }
 );
@@ -466,121 +676,158 @@ app.post(
   "/api/logout",
   requireAdmin,
   (req, res) => {
-    req.session.destroy(err => {
-      if (err) {
-        return res.status(500).json({
-          error: "Logout error"
+    req.session.destroy(
+      () => {
+        res.json({
+          ok: true
         });
       }
+    );
+  }
+);
 
-      res.json({
-        ok: true
+app.get(
+  "/api/me",
+  (req, res) => {
+    if (
+      req.session &&
+      req.session.adminId
+    ) {
+      return res.json({
+        loggedIn: true,
+
+        email:
+          req.session
+            .adminEmail || ""
       });
+    }
+
+    res.json({
+      loggedIn: false
     });
   }
 );
 
-app.get("/api/me", (req, res) => {
-  res.json({
-    admin: !!req.session.adminId
-  });
-});
+/* =========================
+   PRODUTOS PÚBLICOS
+========================= */
 
 app.get(
   "/api/products",
   async (req, res) => {
     try {
-      const result = await pool.query(`
-        SELECT
-          id,
-          name,
-          category,
-          description,
-          price,
-          image,
-          available,
-          size_type,
-          sizes_json
-        FROM products
-        ORDER BY id DESC
-      `);
+      const result =
+        await pool.query(
+          `
+          SELECT *
+          FROM products
+          ORDER BY id DESC
+          `
+        );
 
-      const products = result.rows.map(
-        product => ({
-          ...product,
-
-          sizeType:
-            product.size_type || "",
-
-          sizes:
-            JSON.parse(
-              product.sizes_json || "[]"
-            )
-        })
+      res.json(
+        result.rows.map(
+          productFromRow
+        )
+      );
+    } catch (error) {
+      console.error(
+        "PRODUCTS ERROR:",
+        error
       );
 
-      res.json(products);
-    } catch (error) {
-      console.error(error);
-
-      res.status(500).json({
-        error: "Could not load products"
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            "Não foi possível carregar os produtos."
+        });
     }
   }
 );
+
+/* =========================
+   ADMIN — PRODUTOS
+========================= */
 
 app.post(
   "/api/products",
   requireAdmin,
   async (req, res) => {
     try {
-      if (!validateProduct(req.body)) {
-        return res.status(400).json({
-          error: "Invalid product"
-        });
+      const product =
+        cleanProduct(
+          req.body
+        );
+
+      const validation =
+        validateProduct(
+          product
+        );
+
+      if (validation) {
+        return res
+          .status(400)
+          .json({
+            error:
+              validation
+          });
       }
 
-      const product =
-        cleanProduct(req.body);
-
-      const result = await pool.query(
-        `INSERT INTO products
-         (
-           name,
-           category,
-           description,
-           price,
-           image,
-           available,
-           size_type,
-           sizes_json
-         )
-         VALUES
-         ($1,$2,$3,$4,$5,$6,$7,$8)
-         RETURNING id`,
-        [
-          product.name,
-          product.category,
-          product.description,
-          product.price,
-          product.image,
-          product.available,
-          product.sizeType,
-          JSON.stringify(product.sizes)
-        ]
-      );
+      const result =
+        await pool.query(
+          `
+          INSERT INTO products
+          (
+            name,
+            category,
+            type,
+            description,
+            price,
+            image,
+            available,
+            size_type,
+            sizes_json
+          )
+          VALUES
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          RETURNING *
+          `,
+          [
+            product.name,
+            product.category,
+            product.type,
+            product.description,
+            product.price,
+            product.image,
+            product.available,
+            product.sizeType,
+            JSON.stringify(
+              product.sizes
+            )
+          ]
+        );
 
       res.json({
-        id: result.rows[0].id
+        ok: true,
+
+        product:
+          productFromRow(
+            result.rows[0]
+          )
       });
     } catch (error) {
-      console.error(error);
+      console.error(
+        "CREATE PRODUCT ERROR:",
+        error
+      );
 
-      res.status(500).json({
-        error:
-          "Could not create product"
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            "Não foi possível criar o produto."
+        });
     }
   }
 );
@@ -590,51 +837,107 @@ app.put(
   requireAdmin,
   async (req, res) => {
     try {
-      if (!validateProduct(req.body)) {
-        return res.status(400).json({
-          error: "Invalid product"
-        });
+      const id =
+        Number(
+          req.params.id
+        );
+
+      if (
+        !Number.isInteger(id) ||
+        id <= 0
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "ID inválido."
+          });
       }
 
       const product =
-        cleanProduct(req.body);
+        cleanProduct(
+          req.body
+        );
 
-      await pool.query(
-        `UPDATE products
-         SET
-           name = $1,
-           category = $2,
-           description = $3,
-           price = $4,
-           image = $5,
-           available = $6,
-           size_type = $7,
-           sizes_json = $8,
-           updated_at = NOW()
-         WHERE id = $9`,
-        [
-          product.name,
-          product.category,
-          product.description,
-          product.price,
-          product.image,
-          product.available,
-          product.sizeType,
-          JSON.stringify(product.sizes),
-          Number(req.params.id)
-        ]
-      );
+      const validation =
+        validateProduct(
+          product
+        );
+
+      if (validation) {
+        return res
+          .status(400)
+          .json({
+            error:
+              validation
+          });
+      }
+
+      const result =
+        await pool.query(
+          `
+          UPDATE products
+          SET
+            name = $1,
+            category = $2,
+            type = $3,
+            description = $4,
+            price = $5,
+            image = $6,
+            available = $7,
+            size_type = $8,
+            sizes_json = $9,
+            updated_at = NOW()
+          WHERE id = $10
+          RETURNING *
+          `,
+          [
+            product.name,
+            product.category,
+            product.type,
+            product.description,
+            product.price,
+            product.image,
+            product.available,
+            product.sizeType,
+            JSON.stringify(
+              product.sizes
+            ),
+            id
+          ]
+        );
+
+      if (
+        result.rows.length === 0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Produto não encontrado."
+          });
+      }
 
       res.json({
-        ok: true
+        ok: true,
+
+        product:
+          productFromRow(
+            result.rows[0]
+          )
       });
     } catch (error) {
-      console.error(error);
+      console.error(
+        "UPDATE PRODUCT ERROR:",
+        error
+      );
 
-      res.status(500).json({
-        error:
-          "Could not update product"
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            "Não foi possível atualizar o produto."
+        });
     }
   }
 );
@@ -644,276 +947,403 @@ app.delete(
   requireAdmin,
   async (req, res) => {
     try {
-      await pool.query(
-        "DELETE FROM products WHERE id = $1",
-        [Number(req.params.id)]
-      );
+      const id =
+        Number(
+          req.params.id
+        );
+
+      if (
+        !Number.isInteger(id) ||
+        id <= 0
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "ID inválido."
+          });
+      }
+
+      const result =
+        await pool.query(
+          `
+          DELETE FROM products
+          WHERE id = $1
+          RETURNING id
+          `,
+          [id]
+        );
+
+      if (
+        result.rows.length === 0
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              "Produto não encontrado."
+          });
+      }
 
       res.json({
         ok: true
       });
     } catch (error) {
-      console.error(error);
-
-      res.status(500).json({
-        error:
-          "Could not delete product"
-      });
-    }
-  }
-);
-
-app.get(
-  "/api/orders",
-  requireAdmin,
-  async (req, res) => {
-    try {
-      const result = await pool.query(
-        `SELECT *
-         FROM orders
-         ORDER BY id DESC
-         LIMIT 200`
+      console.error(
+        "DELETE PRODUCT ERROR:",
+        error
       );
 
-      res.json(result.rows);
-    } catch (error) {
-      console.error(error);
-
-      res.status(500).json({
-        error:
-          "Could not load orders"
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            "Não foi possível eliminar o produto."
+        });
     }
   }
 );
+
+/* =========================
+   PEDIDOS
+========================= */
 
 app.post(
   "/api/orders",
+  orderLimiter,
   async (req, res) => {
     try {
-      const {
-        customerName,
-        customerPhone,
-        items
-      } = req.body || {};
+      const customerName =
+        cleanText(
+          req.body.customerName,
+          200
+        );
+
+      const customerPhone =
+        cleanText(
+          req.body.customerPhone,
+          50
+        );
+
+      const items =
+        Array.isArray(
+          req.body.items
+        )
+          ? req.body.items
+          : [];
+
+      if (!customerName) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Digite o seu nome."
+          });
+      }
+
+      if (!customerPhone) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Digite o seu telefone."
+          });
+      }
 
       if (
-        !customerName ||
-        !customerPhone ||
-        !Array.isArray(items) ||
-        !items.length
+        items.length === 0
       ) {
-        return res.status(400).json({
-          error:
-            "Incomplete order"
-        });
+        return res
+          .status(400)
+          .json({
+            error:
+              "O pedido está vazio."
+          });
       }
 
-      if (items.length > 50) {
-        return res.status(400).json({
-          error:
-            "Too many products"
-        });
-      }
-
-      const ids = items
-        .map(item => Number(item.id))
-        .filter(Number.isInteger);
-
-      if (!ids.length) {
-        return res.status(400).json({
-          error:
-            "Invalid products"
-        });
-      }
-
-      const result = await pool.query(
-        `SELECT
-           id,
-           name,
-           price,
-           available,
-           size_type,
-           sizes_json
-         FROM products
-         WHERE id = ANY($1::int[])`,
-        [ids]
-      );
-
-      const products = result.rows;
+      const normalizedItems =
+        [];
 
       let total = 0;
 
-      const safeItems = [];
+      for (
+        const item of items
+      ) {
+        const id =
+          Number(item.id);
 
-      for (const item of items) {
-        const product =
-          products.find(
-            x =>
-              x.id ===
-              Number(item.id)
+        const qty =
+          Number(item.qty);
+
+        const size =
+          cleanText(
+            item.size,
+            20
           );
 
-        const qty = Math.max(
-          1,
-          Math.min(
-            99,
-            Number(item.qty) || 1
-          )
-        );
+        if (
+          !Number.isInteger(id) ||
+          !Number.isInteger(qty) ||
+          qty < 1 ||
+          qty > 99
+        ) {
+          return res
+            .status(400)
+            .json({
+              error:
+                "Produto ou quantidade inválida."
+            });
+        }
+
+        const result =
+          await pool.query(
+            `
+            SELECT *
+            FROM products
+            WHERE id = $1
+            LIMIT 1
+            `,
+            [id]
+          );
 
         if (
-          !product ||
+          result.rows.length === 0
+        ) {
+          return res
+            .status(400)
+            .json({
+              error:
+                "Um dos produtos não existe."
+            });
+        }
+
+        const product =
+          productFromRow(
+            result.rows[0]
+          );
+
+        if (
           !product.available
         ) {
-          return res.status(400).json({
-            error:
-              "A product is unavailable"
-          });
+          return res
+            .status(400)
+            .json({
+              error:
+                `O produto "${product.name}" não está disponível.`
+            });
         }
-
-        let availableSizes = [];
-
-        try {
-          availableSizes =
-            JSON.parse(
-              product.sizes_json ||
-                "[]"
-            );
-        } catch {
-          availableSizes = [];
-        }
-
-        let selectedSize =
-          item.size
-            ? String(item.size)
-            : "";
 
         if (
-          product.size_type &&
-          availableSizes.length
+          product.sizeType &&
+          product.sizes.length > 0
         ) {
           if (
-            !availableSizes.includes(
-              selectedSize
+            !product.sizes.includes(
+              size
             )
           ) {
-            return res.status(400).json({
-              error:
-                "Selecione um tamanho válido."
-            });
+            return res
+              .status(400)
+              .json({
+                error:
+                  `Escolha um tamanho válido para "${product.name}".`
+              });
           }
-        } else {
-          selectedSize = "";
         }
 
-        total +=
-          product.price * qty;
+        const subtotal =
+          Number(
+            product.price
+          ) * qty;
 
-        safeItems.push({
-          id: product.id,
+        total += subtotal;
 
-          name: product.name,
+        normalizedItems.push({
+          id:
+            product.id,
 
-          price: product.price,
+          name:
+            product.name,
+
+          price:
+            Number(
+              product.price
+            ),
 
           qty,
 
-          size: selectedSize
+          size
         });
       }
 
-      const orderResult =
+      const result =
         await pool.query(
-          `INSERT INTO orders
-           (
-             customer_name,
-             customer_phone,
-             items_json,
-             total,
-             status
-           )
-           VALUES ($1,$2,$3,$4,$5)
-           RETURNING id`,
+          `
+          INSERT INTO orders
+          (
+            customer_name,
+            customer_phone,
+            items_json,
+            total
+          )
+          VALUES
+          ($1,$2,$3,$4)
+          RETURNING id
+          `,
           [
-            String(customerName)
-              .slice(0, 100),
-
-            String(customerPhone)
-              .slice(0, 40),
-
+            customerName,
+            customerPhone,
             JSON.stringify(
-              safeItems
+              normalizedItems
             ),
-
-            total,
-
-            "new"
+            total
           ]
         );
 
       const orderId =
-        orderResult.rows[0].id;
+        result.rows[0].id;
 
-      const lines =
-        safeItems
-          .map(item => {
-            const sizeText =
-              item.size
-                ? ` | Tamanho: ${item.size}`
-                : "";
+      let message =
+        `Olá! Quero fazer o pedido #${orderId}%0A%0A`;
 
-            return (
-              `- ${item.name}` +
-              ` x${item.qty}` +
-              `${sizeText}` +
-              `: ` +
-              `${item.price * item.qty}` +
-              ` AOA`
-            );
-          })
-          .join("\n");
-
-      const message =
-        `Olá, Lumexa Store! ` +
-        `Quero fazer este pedido:\n\n` +
-
-        `${lines}\n\n` +
-
-        `Total: ${total} AOA\n` +
-
-        `Nome: ${String(
+      message +=
+        `Nome: ${encodeURIComponent(
           customerName
-        ).slice(0, 100)}\n` +
+        )}%0A`;
 
-        `Telefone: ${String(
+      message +=
+        `Telefone: ${encodeURIComponent(
           customerPhone
-        ).slice(0, 40)}\n` +
+        )}%0A%0A`;
 
-        `Pedido #${orderId}`;
+      for (
+        const item of normalizedItems
+      ) {
+        message +=
+          `${encodeURIComponent(
+            item.name
+          )} x${item.qty}`;
+
+        if (item.size) {
+          message +=
+            ` — Tamanho: ${encodeURIComponent(
+              item.size
+            )}`;
+        }
+
+        message +=
+          `%0A`;
+      }
+
+      message +=
+        `%0ATotal: ${encodeURIComponent(
+          total.toFixed(2)
+        )} ${encodeURIComponent(
+          STORE_CURRENCY
+        )}`;
+
+      const whatsappUrl =
+        `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
 
       res.json({
         ok: true,
 
         orderId,
 
-        whatsappUrl:
-          `https://wa.me/${whatsapp}` +
-          `?text=` +
-          encodeURIComponent(
-            message
-          )
+        whatsappUrl
       });
     } catch (error) {
-      console.error(error);
+      console.error(
+        "ORDER ERROR:",
+        error
+      );
 
-      res.status(500).json({
-        error:
-          "Could not create order"
-      });
+      res
+        .status(500)
+        .json({
+          error:
+            "Não foi possível criar o pedido."
+        });
     }
   }
 );
+
+/* =========================
+   ADMIN — PEDIDOS
+========================= */
+
+app.get(
+  "/api/orders",
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const result =
+        await pool.query(
+          `
+          SELECT *
+          FROM orders
+          ORDER BY id DESC
+          LIMIT 100
+          `
+        );
+
+      const orders =
+        result.rows.map(
+          row => {
+            let items = [];
+
+            try {
+              items =
+                JSON.parse(
+                  row.items_json ||
+                    "[]"
+                );
+            } catch {
+              items = [];
+            }
+
+            return {
+              id: row.id,
+
+              customerName:
+                row.customer_name,
+
+              customerPhone:
+                row.customer_phone,
+
+              items,
+
+              total:
+                Number(
+                  row.total
+                ),
+
+              createdAt:
+                row.created_at
+            };
+          }
+        );
+
+      res.json(orders);
+    } catch (error) {
+      console.error(
+        "ORDERS ERROR:",
+        error
+      );
+
+      res
+        .status(500)
+        .json({
+          error:
+            "Não foi possível carregar os pedidos."
+        });
+    }
+  }
+);
+
+/* =========================
+   FICHEIROS PÚBLICOS
+========================= */
 
 app.use(
   express.static(
@@ -922,25 +1352,32 @@ app.use(
       "public"
     ),
     {
-      extensions: ["html"],
-      dotfiles: "deny"
+      index:
+        "index.html"
     }
   )
 );
 
-app.use(
+/* =========================
+   FALLBACK
+========================= */
+
+app.get(
+  "*",
   (req, res) => {
-    res
-      .status(404)
-      .sendFile(
-        path.join(
-          __dirname,
-          "public",
-          "index.html"
-        )
-      );
+    res.sendFile(
+      path.join(
+        __dirname,
+        "public",
+        "index.html"
+      )
+    );
   }
 );
+
+/* =========================
+   ERROS
+========================= */
 
 app.use(
   (
@@ -949,45 +1386,52 @@ app.use(
     res,
     next
   ) => {
-    console.error(error);
+    console.error(
+      "SERVER ERROR:",
+      error
+    );
 
     if (
       error.code ===
       "EBADCSRFTOKEN"
     ) {
-      return res.status(403).json({
-        error:
-          "Invalid CSRF token"
-      });
+      return res
+        .status(403)
+        .json({
+          error:
+            "Token CSRF inválido."
+        });
     }
 
-    res.status(500).json({
-      error:
-        "Internal server error"
-    });
+    res
+      .status(500)
+      .json({
+        error:
+          "Erro interno do servidor."
+      });
   }
 );
 
-async function start() {
-  try {
-    await initDatabase();
+/* =========================
+   INICIAR
+========================= */
 
+initDatabase()
+  .then(() => {
     app.listen(
-      port,
+      PORT,
       () => {
         console.log(
-          `Lumexa Store running on port ${port}`
+          `Lumexa Store running on port ${PORT}`
         );
       }
     );
-  } catch (error) {
+  })
+  .catch(error => {
     console.error(
-      "Startup error:",
+      "DATABASE START ERROR:",
       error
     );
 
     process.exit(1);
-  }
-}
-
-start();
+  });
