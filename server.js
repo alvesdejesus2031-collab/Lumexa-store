@@ -7,28 +7,19 @@ const { Pool } = require("pg");
 const bcrypt = require("bcrypt");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const csurf = require("csurf");
+const csrf = require("csurf");
 const path = require("path");
 
 const app = express();
+const PORT = process.env.PORT || 10000;
+
+// ======================================================
+// CONFIGURAÇÃO
+// ======================================================
 
 app.set("trust proxy", 1);
 
-const PORT = process.env.PORT || 3000;
-
-const isProduction =
-  process.env.NODE_ENV === "production";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: isProduction
-    ? { rejectUnauthorized: false }
-    : false
-});
-
-/* =========================
-   CONFIGURAÇÃO
-========================= */
+const isProduction = process.env.NODE_ENV === "production";
 
 const WHATSAPP_NUMBER =
   process.env.WHATSAPP_NUMBER || "244937770994";
@@ -50,337 +41,134 @@ const ALLOWED_SIZE_TYPES = [
 ];
 
 const ALLOWED_SIZES = {
-  shirt: [
-    "S",
-    "M",
-    "L",
-    "XL",
-    "XXL"
-  ],
-
-  pants: [
-    "32",
-    "34",
-    "36",
-    "38",
-    "40",
-    "42",
-    "44"
-  ],
-
-  shoe: [
-    "38",
-    "39",
-    "40",
-    "41",
-    "42",
-    "43",
-    "44"
-  ]
+  shirt: ["S", "M", "L", "XL", "XXL"],
+  pants: ["32", "34", "36", "38", "40", "42", "44"],
+  shoe: ["38", "39", "40", "41", "42", "43", "44"]
 };
 
-/* =========================
-   APP
-========================= */
+// ======================================================
+// DATABASE
+// ======================================================
+
+if (!process.env.DATABASE_URL) {
+  console.error("DATABASE_URL não está configurada.");
+  process.exit(1);
+}
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: isProduction
+    ? { rejectUnauthorized: false }
+    : false
+});
+
+// ======================================================
+// MIDDLEWARES
+// ======================================================
 
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-
-        scriptSrc: [
-          "'self'"
-        ],
-
-        styleSrc: [
-          "'self'",
-          "'unsafe-inline'"
-        ],
-
-        imgSrc: [
-          "'self'",
-          "data:",
-          "https:"
-        ],
-
-        connectSrc: [
-          "'self'"
-        ],
-
-        fontSrc: [
-          "'self'",
-          "data:",
-          "https:"
-        ],
-
-        objectSrc: [
-          "'none'"
-        ],
-
-        baseUri: [
-          "'self'"
-        ],
-
-        frameAncestors: [
-          "'none'"
-        ]
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        frameAncestors: ["'none'"]
       }
     }
   })
 );
 
-app.use(
-  express.json({
-    limit: "2mb"
-  })
-);
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
-app.use(
-  express.urlencoded({
-    extended: false,
-    limit: "2mb"
-  })
-);
-
-/* =========================
-   RATE LIMIT
-========================= */
-
-const loginLimiter =
-  rateLimit({
-    windowMs:
-      15 * 60 * 1000,
-
-    max: 10,
-
-    standardHeaders: true,
-
-    legacyHeaders: false,
-
-    message: {
-      error:
-        "Muitas tentativas. Aguarde alguns minutos."
-    }
-  });
-
-const orderLimiter =
-  rateLimit({
-    windowMs:
-      10 * 60 * 1000,
-
-    max: 30,
-
-    standardHeaders: true,
-
-    legacyHeaders: false,
-
-    message: {
-      error:
-        "Muitos pedidos. Aguarde alguns minutos."
-    }
-  });
-
-/* =========================
-   SESSÃO
-========================= */
+// ======================================================
+// SESSÃO
+// ======================================================
 
 app.use(
   session({
     store: new pgSession({
       pool,
-
-      tableName:
-        "user_sessions",
-
-      createTableIfMissing:
-        true
+      tableName: "user_sessions",
+      createTableIfMissing: true
     }),
 
     secret:
       process.env.SESSION_SECRET ||
-      "change-this-secret",
+      "change-this-session-secret",
 
     resave: false,
-
     saveUninitialized: false,
-
-    proxy: true,
+    proxy: isProduction,
 
     cookie: {
       httpOnly: true,
-
       secure: isProduction,
-
       sameSite: "strict",
-
-      maxAge:
-        1000 *
-        60 *
-        60 *
-        8
+      maxAge: 1000 * 60 * 60 * 8
     }
   })
 );
 
-/* =========================
-   CSRF
-========================= */
+// ======================================================
+// RATE LIMIT
+// ======================================================
 
-const csrfProtection =
-  csurf({
-    cookie: false
-  });
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
-/*
-  O endpoint público de pedidos
-  NÃO usa CSRF porque é usado pelo
-  cliente sem autenticação.
+const orderLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
-  Os endpoints administrativos continuam
-  protegidos por CSRF.
-*/
+// ======================================================
+// CSRF
+// ======================================================
 
-app.use(
-  (req, res, next) => {
-    if (
-      req.path ===
-      "/api/orders"
-    ) {
-      return next();
-    }
+const csrfProtection = csrf({
+  cookie: false
+});
 
-    return csrfProtection(
-      req,
-      res,
-      next
-    );
+// Os pedidos públicos não usam CSRF.
+// Os endpoints administrativos continuam protegidos.
+app.use((req, res, next) => {
+  if (req.path === "/api/orders") {
+    return next();
   }
-);
 
-/* =========================
-   BANCO DE DADOS
-========================= */
+  return csrfProtection(req, res, next);
+});
 
-async function initDatabase() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS admins (
-      id SERIAL PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
+// ======================================================
+// FUNÇÕES AUXILIARES
+// ======================================================
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS products (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      category TEXT NOT NULL DEFAULT '',
-      type TEXT NOT NULL DEFAULT '',
-      description TEXT NOT NULL DEFAULT '',
-      price NUMERIC(14,2) NOT NULL DEFAULT 0,
-      image TEXT NOT NULL DEFAULT '',
-      available BOOLEAN NOT NULL DEFAULT TRUE,
-      size_type TEXT NOT NULL DEFAULT '',
-      sizes_json TEXT NOT NULL DEFAULT '[]',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS orders (
-      id SERIAL PRIMARY KEY,
-      customer_name TEXT NOT NULL,
-      customer_phone TEXT NOT NULL,
-      items_json TEXT NOT NULL,
-      total NUMERIC(14,2) NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-
-  /* Compatibilidade com bases antigas */
-
-  await pool.query(`
-    ALTER TABLE products
-    ADD COLUMN IF NOT EXISTS
-    size_type TEXT NOT NULL DEFAULT ''
-  `);
-
-  await pool.query(`
-    ALTER TABLE products
-    ADD COLUMN IF NOT EXISTS
-    sizes_json TEXT NOT NULL DEFAULT '[]'
-  `);
-
-  if (
-    ADMIN_EMAIL &&
-    ADMIN_PASSWORD
-  ) {
-    const existing =
-      await pool.query(
-        "SELECT id FROM admins WHERE email = $1 LIMIT 1",
-        [ADMIN_EMAIL]
-      );
-
-    if (
-      existing.rows.length === 0
-    ) {
-      const hash =
-        await bcrypt.hash(
-          ADMIN_PASSWORD,
-          12
-        );
-
-      await pool.query(
-        `
-        INSERT INTO admins
-        (email, password_hash)
-        VALUES ($1, $2)
-        `,
-        [
-          ADMIN_EMAIL,
-          hash
-        ]
-      );
-    }
-  }
-}
-
-/* =========================
-   FUNÇÕES AUXILIARES
-========================= */
-
-function cleanText(
-  value,
-  maxLength = 5000
-) {
-  if (
-    value === undefined ||
-    value === null
-  ) {
+function cleanText(value, maxLength = 5000) {
+  if (value === undefined || value === null) {
     return "";
   }
 
-  return String(value)
-    .trim()
-    .slice(0, maxLength);
+  return String(value).trim().slice(0, maxLength);
 }
 
-function cleanSizes(
-  sizeType,
-  sizes
-) {
-  if (
-    !ALLOWED_SIZE_TYPES.includes(
-      sizeType
-    )
-  ) {
+function cleanSizes(sizeType, sizes) {
+  if (!sizeType) {
     return [];
   }
 
-  if (!sizeType) {
+  if (!ALLOWED_SIZES[sizeType]) {
     return [];
   }
 
@@ -388,85 +176,62 @@ function cleanSizes(
     return [];
   }
 
-  const allowed =
-    ALLOWED_SIZES[sizeType];
+  const allowed = ALLOWED_SIZES[sizeType];
 
   return [
     ...new Set(
       sizes
-        .map(value =>
-          String(value)
-        )
-        .filter(value =>
-          allowed.includes(value)
-        )
+        .map((size) => String(size))
+        .filter((size) => allowed.includes(size))
     )
   ];
 }
 
-function cleanProduct(
-  body
-) {
-  const sizeType =
-    ALLOWED_SIZE_TYPES.includes(
-      body.sizeType
-    )
-      ? body.sizeType
-      : "";
+function cleanProduct(body) {
+  const name = cleanText(body.name, 150);
+  const category = cleanText(body.category, 100);
+  const type = cleanText(body.type, 50);
 
-  const sizes =
-    cleanSizes(
-      sizeType,
-      body.sizes
-    );
+  const price = Number(body.price);
 
-  const price =
-    Number(body.price);
+  const description = cleanText(
+    body.description,
+    3000
+  );
+
+  const image = cleanText(
+    body.image,
+    1000000
+  );
+
+  const sizeType = ALLOWED_SIZE_TYPES.includes(
+    body.sizeType
+  )
+    ? body.sizeType
+    : "";
+
+  const sizes = cleanSizes(
+    sizeType,
+    body.sizes
+  );
+
+  const available =
+    body.available !== false;
 
   return {
-    name: cleanText(
-      body.name,
-      200
-    ),
-
-    category: cleanText(
-      body.category,
-      100
-    ),
-
-    type: cleanText(
-      body.type,
-      100
-    ),
-
-    description: cleanText(
-      body.description,
-      5000
-    ),
-
-    price:
-      Number.isFinite(price) &&
-      price >= 0
-        ? price
-        : 0,
-
-    image: cleanText(
-      body.image,
-      1500000
-    ),
-
-    available:
-      body.available !== false,
-
+    name,
+    category,
+    type,
+    price,
+    description,
+    image,
     sizeType,
-
-    sizes
+    sizes,
+    available
   };
 }
 
-function validateProduct(
-  product
-) {
+function validateProduct(product) {
   if (!product.name) {
     return "O nome do produto é obrigatório.";
   }
@@ -476,12 +241,10 @@ function validateProduct(
   }
 
   if (
-    !Number.isFinite(
-      product.price
-    ) ||
+    !Number.isFinite(product.price) ||
     product.price < 0
   ) {
-    return "O preço é inválido.";
+    return "O preço do produto é inválido.";
   }
 
   if (
@@ -494,261 +257,359 @@ function validateProduct(
   return null;
 }
 
-function productFromRow(
-  row
-) {
+function productFromRow(row) {
   let sizes = [];
 
   try {
-    sizes =
-      JSON.parse(
-        row.sizes_json || "[]"
-      );
+    sizes = JSON.parse(row.sizes_json || "[]");
   } catch {
     sizes = [];
   }
 
   return {
     id: row.id,
-
     name: row.name,
-
-    category:
-      row.category,
-
-    type:
-      row.type,
-
-    description:
-      row.description,
-
-    price:
-      Number(row.price),
-
-    image:
-      row.image,
-
-    available:
-      Boolean(row.available),
-
-    sizeType:
-      row.size_type || "",
-
-    sizes:
-      Array.isArray(sizes)
-        ? sizes
-        : []
+    category: row.category,
+    type: row.type || "",
+    price: Number(row.price),
+    description: row.description || "",
+    image: row.image || "",
+    available: Boolean(row.available),
+    sizeType: row.size_type || "",
+    sizes
   };
 }
 
-function requireAdmin(
-  req,
-  res,
-  next
-) {
+function requireAdmin(req, res, next) {
   if (
     !req.session ||
     !req.session.adminId
   ) {
-    return res
-      .status(401)
-      .json({
-        error:
-          "Não autorizado."
-      });
+    return res.status(401).json({
+      error: "Não autorizado."
+    });
   }
 
   next();
 }
 
-/* =========================
-   CSRF TOKEN
-========================= */
+// ======================================================
+// BANCO DE DADOS
+// ======================================================
 
-app.get(
-  "/api/csrf",
-  (req, res) => {
-    res.json({
-      csrfToken:
-        req.csrfToken()
-    });
+async function initDatabase() {
+  // ----------------------------
+  // ADMINS
+  // ----------------------------
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admins (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // ----------------------------
+  // PRODUCTS
+  // ----------------------------
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS products (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      type TEXT DEFAULT '',
+      price NUMERIC(12,2) NOT NULL DEFAULT 0,
+      description TEXT DEFAULT '',
+      image TEXT DEFAULT '',
+      available BOOLEAN NOT NULL DEFAULT TRUE,
+      size_type TEXT DEFAULT '',
+      sizes_json TEXT DEFAULT '[]',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // ==================================================
+  // MIGRAÇÃO DA TABELA PRODUCTS
+  // ==================================================
+  // Estas linhas são importantes porque a tua tabela
+  // antiga já existe no PostgreSQL.
+  // Elas adicionam as colunas que estiverem faltando.
+  // ==================================================
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS name TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS category TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS type TEXT DEFAULT ''
+  `);
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS price NUMERIC(12,2) DEFAULT 0
+  `);
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''
+  `);
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS image TEXT DEFAULT ''
+  `);
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS available BOOLEAN DEFAULT TRUE
+  `);
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS size_type TEXT DEFAULT ''
+  `);
+
+  await pool.query(`
+    ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS sizes_json TEXT DEFAULT '[]'
+  `);
+
+  // ----------------------------
+  // ORDERS
+  // ----------------------------
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      customer_name TEXT NOT NULL,
+      customer_phone TEXT NOT NULL,
+      items_json TEXT NOT NULL,
+      total NUMERIC(12,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // ----------------------------
+  // ADMIN
+  // ----------------------------
+
+  if (ADMIN_EMAIL && ADMIN_PASSWORD) {
+    const existing = await pool.query(
+      `SELECT id FROM admins WHERE email = $1 LIMIT 1`,
+      [ADMIN_EMAIL]
+    );
+
+    if (existing.rows.length === 0) {
+      const passwordHash =
+        await bcrypt.hash(
+          ADMIN_PASSWORD,
+          12
+        );
+
+      await pool.query(
+        `
+        INSERT INTO admins
+          (email, password_hash)
+        VALUES
+          ($1, $2)
+        `,
+        [
+          ADMIN_EMAIL,
+          passwordHash
+        ]
+      );
+
+      console.log(
+        "Administrador criado."
+      );
+    }
   }
-);
 
-/* =========================
-   AUTENTICAÇÃO
-========================= */
+  console.log(
+    "Banco de dados inicializado."
+  );
+}
+
+// ======================================================
+// CSRF TOKEN
+// ======================================================
+
+app.get("/api/csrf", (req, res) => {
+  res.json({
+    csrfToken: req.csrfToken()
+  });
+});
+
+// ======================================================
+// LOGIN
+// ======================================================
 
 app.post(
   "/api/login",
   loginLimiter,
   async (req, res) => {
     try {
-      const email =
-        cleanText(
-          req.body.email,
-          200
-        ).toLowerCase();
+      const email = cleanText(
+        req.body.email,
+        200
+      );
 
-      const password =
-        String(
-          req.body.password || ""
-        );
+      const password = String(
+        req.body.password || ""
+      );
 
-      if (
-        !email ||
-        !password
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Email e senha são obrigatórios."
-          });
+      if (!email || !password) {
+        return res.status(400).json({
+          error:
+            "Email e senha são obrigatórios."
+        });
       }
 
-      const result =
-        await pool.query(
-          `
-          SELECT *
-          FROM admins
-          WHERE LOWER(email) = LOWER($1)
-          LIMIT 1
-          `,
-          [email]
-        );
+      const result = await pool.query(
+        `
+        SELECT id, email, password_hash
+        FROM admins
+        WHERE email = $1
+        LIMIT 1
+        `,
+        [email]
+      );
 
-      if (
-        result.rows.length === 0
-      ) {
-        return res
-          .status(401)
-          .json({
-            error:
-              "Credenciais inválidas."
-          });
+      if (result.rows.length === 0) {
+        return res.status(401).json({
+          error:
+            "Email ou senha incorretos."
+        });
       }
 
-      const admin =
-        result.rows[0];
+      const admin = result.rows[0];
 
-      const valid =
+      const passwordOk =
         await bcrypt.compare(
           password,
           admin.password_hash
         );
 
-      if (!valid) {
-        return res
-          .status(401)
-          .json({
-            error:
-              "Credenciais inválidas."
-          });
+      if (!passwordOk) {
+        return res.status(401).json({
+          error:
+            "Email ou senha incorretos."
+        });
       }
 
-      req.session.adminId =
-        admin.id;
-
+      req.session.adminId = admin.id;
       req.session.adminEmail =
         admin.email;
 
-      res.json({
+      return res.json({
         ok: true
       });
     } catch (error) {
       console.error(
-        "LOGIN ERROR:",
+        "Erro no login:",
         error
       );
 
-      res
-        .status(500)
-        .json({
-          error:
-            "Erro interno."
-        });
+      return res.status(500).json({
+        error: "Erro interno."
+      });
     }
   }
 );
+
+// ======================================================
+// LOGOUT
+// ======================================================
 
 app.post(
   "/api/logout",
   requireAdmin,
   (req, res) => {
-    req.session.destroy(
-      () => {
-        res.json({
-          ok: true
-        });
-      }
-    );
-  }
-);
+    req.session.destroy(() => {
+      res.clearCookie("connect.sid");
 
-app.get(
-  "/api/me",
-  (req, res) => {
-    if (
-      req.session &&
-      req.session.adminId
-    ) {
-      return res.json({
-        loggedIn: true,
-
-        email:
-          req.session
-            .adminEmail || ""
+      res.json({
+        ok: true
       });
-    }
-
-    res.json({
-      loggedIn: false
     });
   }
 );
 
-/* =========================
-   PRODUTOS PÚBLICOS
-========================= */
+// ======================================================
+// VERIFICAR ADMIN
+// ======================================================
+
+app.get("/api/me", (req, res) => {
+  if (
+    req.session &&
+    req.session.adminId
+  ) {
+    return res.json({
+      authenticated: true,
+      email:
+        req.session.adminEmail || ""
+    });
+  }
+
+  res.status(401).json({
+    authenticated: false
+  });
+});
+
+// ======================================================
+// PRODUTOS — PÚBLICO
+// ======================================================
 
 app.get(
   "/api/products",
   async (req, res) => {
     try {
-      const result =
-        await pool.query(
-          `
-          SELECT *
-          FROM products
-          ORDER BY id DESC
-          `
-        );
+      const result = await pool.query(`
+        SELECT
+          id,
+          name,
+          category,
+          type,
+          price,
+          description,
+          image,
+          available,
+          size_type,
+          sizes_json
+        FROM products
+        ORDER BY id DESC
+      `);
 
       res.json(
-        result.rows.map(
-          productFromRow
-        )
+        result.rows.map(productFromRow)
       );
     } catch (error) {
       console.error(
-        "PRODUCTS ERROR:",
+        "Erro ao buscar produtos:",
         error
       );
 
-      res
-        .status(500)
-        .json({
-          error:
-            "Não foi possível carregar os produtos."
-        });
+      res.status(500).json({
+        error:
+          "Não foi possível carregar os produtos."
+      });
     }
   }
 );
 
-/* =========================
-   ADMIN — PRODUTOS
-========================= */
+// ======================================================
+// CRIAR PRODUTO — ADMIN
+// ======================================================
 
 app.post(
   "/api/products",
@@ -756,61 +617,72 @@ app.post(
   async (req, res) => {
     try {
       const product =
-        cleanProduct(
-          req.body
-        );
+        cleanProduct(req.body);
 
       const validation =
-        validateProduct(
-          product
-        );
+        validateProduct(product);
 
       if (validation) {
-        return res
-          .status(400)
-          .json({
-            error:
-              validation
-          });
+        return res.status(400).json({
+          error: validation
+        });
       }
 
-      const result =
-        await pool.query(
-          `
-          INSERT INTO products
-          (
-            name,
-            category,
-            type,
-            description,
-            price,
-            image,
-            available,
-            size_type,
-            sizes_json
+      const result = await pool.query(
+        `
+        INSERT INTO products
+        (
+          name,
+          category,
+          type,
+          price,
+          description,
+          image,
+          available,
+          size_type,
+          sizes_json
+        )
+        VALUES
+        (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9
+        )
+        RETURNING
+          id,
+          name,
+          category,
+          type,
+          price,
+          description,
+          image,
+          available,
+          size_type,
+          sizes_json
+        `,
+        [
+          product.name,
+          product.category,
+          product.type,
+          product.price,
+          product.description,
+          product.image,
+          product.available,
+          product.sizeType,
+          JSON.stringify(
+            product.sizes
           )
-          VALUES
-          ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-          RETURNING *
-          `,
-          [
-            product.name,
-            product.category,
-            product.type,
-            product.description,
-            product.price,
-            product.image,
-            product.available,
-            product.sizeType,
-            JSON.stringify(
-              product.sizes
-            )
-          ]
-        );
+        ]
+      );
 
-      res.json({
+      res.status(201).json({
         ok: true,
-
         product:
           productFromRow(
             result.rows[0]
@@ -818,19 +690,21 @@ app.post(
       });
     } catch (error) {
       console.error(
-        "CREATE PRODUCT ERROR:",
+        "ERRO AO CRIAR PRODUTO:",
         error
       );
 
-      res
-        .status(500)
-        .json({
-          error:
-            "Não foi possível criar o produto."
-        });
+      res.status(500).json({
+        error:
+          "Não foi possível criar o produto."
+      });
     }
   }
 );
+
+// ======================================================
+// EDITAR PRODUTO — ADMIN
+// ======================================================
 
 app.put(
   "/api/products/:id",
@@ -838,89 +712,81 @@ app.put(
   async (req, res) => {
     try {
       const id =
-        Number(
-          req.params.id
-        );
+        Number(req.params.id);
 
       if (
         !Number.isInteger(id) ||
         id <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "ID inválido."
-          });
+        return res.status(400).json({
+          error:
+            "ID do produto inválido."
+        });
       }
 
       const product =
-        cleanProduct(
-          req.body
-        );
+        cleanProduct(req.body);
 
       const validation =
-        validateProduct(
-          product
-        );
+        validateProduct(product);
 
       if (validation) {
-        return res
-          .status(400)
-          .json({
-            error:
-              validation
-          });
+        return res.status(400).json({
+          error: validation
+        });
       }
 
-      const result =
-        await pool.query(
-          `
-          UPDATE products
-          SET
-            name = $1,
-            category = $2,
-            type = $3,
-            description = $4,
-            price = $5,
-            image = $6,
-            available = $7,
-            size_type = $8,
-            sizes_json = $9,
-            updated_at = NOW()
-          WHERE id = $10
-          RETURNING *
-          `,
-          [
-            product.name,
-            product.category,
-            product.type,
-            product.description,
-            product.price,
-            product.image,
-            product.available,
-            product.sizeType,
-            JSON.stringify(
-              product.sizes
-            ),
-            id
-          ]
-        );
+      const result = await pool.query(
+        `
+        UPDATE products
+        SET
+          name = $1,
+          category = $2,
+          type = $3,
+          price = $4,
+          description = $5,
+          image = $6,
+          available = $7,
+          size_type = $8,
+          sizes_json = $9
+        WHERE id = $10
+        RETURNING
+          id,
+          name,
+          category,
+          type,
+          price,
+          description,
+          image,
+          available,
+          size_type,
+          sizes_json
+        `,
+        [
+          product.name,
+          product.category,
+          product.type,
+          product.price,
+          product.description,
+          product.image,
+          product.available,
+          product.sizeType,
+          JSON.stringify(
+            product.sizes
+          ),
+          id
+        ]
+      );
 
-      if (
-        result.rows.length === 0
-      ) {
-        return res
-          .status(404)
-          .json({
-            error:
-              "Produto não encontrado."
-          });
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          error:
+            "Produto não encontrado."
+        });
       }
 
       res.json({
         ok: true,
-
         product:
           productFromRow(
             result.rows[0]
@@ -928,19 +794,21 @@ app.put(
       });
     } catch (error) {
       console.error(
-        "UPDATE PRODUCT ERROR:",
+        "ERRO AO EDITAR PRODUTO:",
         error
       );
 
-      res
-        .status(500)
-        .json({
-          error:
-            "Não foi possível atualizar o produto."
-        });
+      res.status(500).json({
+        error:
+          "Não foi possível editar o produto."
+      });
     }
   }
 );
+
+// ======================================================
+// APAGAR PRODUTO — ADMIN
+// ======================================================
 
 app.delete(
   "/api/products/:id",
@@ -948,41 +816,32 @@ app.delete(
   async (req, res) => {
     try {
       const id =
-        Number(
-          req.params.id
-        );
+        Number(req.params.id);
 
       if (
         !Number.isInteger(id) ||
         id <= 0
       ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "ID inválido."
-          });
+        return res.status(400).json({
+          error:
+            "ID do produto inválido."
+        });
       }
 
-      const result =
-        await pool.query(
-          `
-          DELETE FROM products
-          WHERE id = $1
-          RETURNING id
-          `,
-          [id]
-        );
+      const result = await pool.query(
+        `
+        DELETE FROM products
+        WHERE id = $1
+        RETURNING id
+        `,
+        [id]
+      );
 
-      if (
-        result.rows.length === 0
-      ) {
-        return res
-          .status(404)
-          .json({
-            error:
-              "Produto não encontrado."
-          });
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          error:
+            "Produto não encontrado."
+        });
       }
 
       res.json({
@@ -990,23 +849,21 @@ app.delete(
       });
     } catch (error) {
       console.error(
-        "DELETE PRODUCT ERROR:",
+        "ERRO AO APAGAR PRODUTO:",
         error
       );
 
-      res
-        .status(500)
-        .json({
-          error:
-            "Não foi possível eliminar o produto."
-        });
+      res.status(500).json({
+        error:
+          "Não foi possível apagar o produto."
+      });
     }
   }
 );
 
-/* =========================
-   PEDIDOS
-========================= */
+// ======================================================
+// CRIAR PEDIDO — CLIENTE
+// ======================================================
 
 app.post(
   "/api/orders",
@@ -1016,7 +873,7 @@ app.post(
       const customerName =
         cleanText(
           req.body.customerName,
-          200
+          150
         );
 
       const customerPhone =
@@ -1026,43 +883,75 @@ app.post(
         );
 
       const items =
-        Array.isArray(
-          req.body.items
-        )
+        Array.isArray(req.body.items)
           ? req.body.items
           : [];
 
-      if (!customerName) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Digite o seu nome."
-          });
-      }
-
-      if (!customerPhone) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Digite o seu telefone."
-          });
-      }
-
       if (
+        !customerName ||
+        !customerPhone ||
         items.length === 0
       ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "O pedido está vazio."
-          });
+        return res.status(400).json({
+          error:
+            "Nome, telefone e produtos são obrigatórios."
+        });
       }
 
-      const normalizedItems =
-        [];
+      const productIds = [
+        ...new Set(
+          items
+            .map((item) =>
+              Number(item.id)
+            )
+            .filter((id) =>
+              Number.isInteger(id)
+            )
+        )
+      ];
+
+      if (
+        productIds.length === 0
+      ) {
+        return res.status(400).json({
+          error:
+            "Produtos inválidos."
+        });
+      }
+
+      const result =
+        await pool.query(
+          `
+          SELECT
+            id,
+            name,
+            category,
+            type,
+            price,
+            description,
+            image,
+            available,
+            size_type,
+            sizes_json
+          FROM products
+          WHERE id = ANY($1::int[])
+          `,
+          [productIds]
+        );
+
+      const productMap =
+        new Map();
+
+      for (
+        const row of result.rows
+      ) {
+        productMap.set(
+          Number(row.id),
+          productFromRow(row)
+        );
+      }
+
+      const finalItems = [];
 
       let total = 0;
 
@@ -1072,142 +961,101 @@ app.post(
         const id =
           Number(item.id);
 
-        const qty =
-          Number(item.qty);
+        const product =
+          productMap.get(id);
 
-        const size =
-          cleanText(
+        if (!product) {
+          return res.status(400).json({
+            error:
+              "Um dos produtos não existe."
+          });
+        }
+
+        if (!product.available) {
+          return res.status(400).json({
+            error:
+              `O produto "${product.name}" não está disponível.`
+          });
+        }
+
+        const quantity =
+          Math.max(
+            1,
+            Math.min(
+              99,
+              Number(item.quantity) || 1
+            )
+          );
+
+        let size = "";
+
+        if (product.sizeType) {
+          size = cleanText(
             item.size,
             20
           );
 
-        if (
-          !Number.isInteger(id) ||
-          !Number.isInteger(qty) ||
-          qty < 1 ||
-          qty > 99
-        ) {
-          return res
-            .status(400)
-            .json({
-              error:
-                "Produto ou quantidade inválida."
-            });
-        }
-
-        const result =
-          await pool.query(
-            `
-            SELECT *
-            FROM products
-            WHERE id = $1
-            LIMIT 1
-            `,
-            [id]
-          );
-
-        if (
-          result.rows.length === 0
-        ) {
-          return res
-            .status(400)
-            .json({
-              error:
-                "Um dos produtos não existe."
-            });
-        }
-
-        const product =
-          productFromRow(
-            result.rows[0]
-          );
-
-        if (
-          !product.available
-        ) {
-          return res
-            .status(400)
-            .json({
-              error:
-                `O produto "${product.name}" não está disponível.`
-            });
-        }
-
-        if (
-          product.sizeType &&
-          product.sizes.length > 0
-        ) {
           if (
             !product.sizes.includes(
               size
             )
           ) {
-            return res
-              .status(400)
-              .json({
-                error:
-                  `Escolha um tamanho válido para "${product.name}".`
-              });
+            return res.status(400).json({
+              error:
+                `Selecione um tamanho válido para "${product.name}".`
+            });
           }
         }
 
         const subtotal =
-          Number(
-            product.price
-          ) * qty;
+          Number(product.price) *
+          quantity;
 
         total += subtotal;
 
-        normalizedItems.push({
-          id:
-            product.id,
-
-          name:
-            product.name,
-
-          price:
-            Number(
-              product.price
-            ),
-
-          qty,
-
+        finalItems.push({
+          id: product.id,
+          name: product.name,
+          price: Number(
+            product.price
+          ),
+          quantity,
           size
         });
       }
 
-      const result =
-        await pool.query(
-          `
-          INSERT INTO orders
-          (
-            customer_name,
-            customer_phone,
-            items_json,
-            total
-          )
-          VALUES
-          ($1,$2,$3,$4)
-          RETURNING id
-          `,
-          [
-            customerName,
-            customerPhone,
-            JSON.stringify(
-              normalizedItems
-            ),
-            total
-          ]
-        );
+      total =
+        Math.round(
+          total * 100
+        ) / 100;
 
-      const orderId =
-        result.rows[0].id;
+      await pool.query(
+        `
+        INSERT INTO orders
+        (
+          customer_name,
+          customer_phone,
+          items_json,
+          total
+        )
+        VALUES
+        ($1, $2, $3, $4)
+        `,
+        [
+          customerName,
+          customerPhone,
+          JSON.stringify(
+            finalItems
+          ),
+          total
+        ]
+      );
 
       let message =
-        `Olá! Quero fazer o pedido #${orderId}%0A%0A`;
+        `Olá! Quero fazer um pedido na Lumexa Store.%0A%0A`;
 
       message +=
-        `Nome: ${encodeURIComponent(
+        `Cliente: ${encodeURIComponent(
           customerName
         )}%0A`;
 
@@ -1217,12 +1065,12 @@ app.post(
         )}%0A%0A`;
 
       for (
-        const item of normalizedItems
+        const item of finalItems
       ) {
         message +=
-          `${encodeURIComponent(
+          `• ${encodeURIComponent(
             item.name
-          )} x${item.qty}`;
+          )} x ${item.quantity}`;
 
         if (item.size) {
           message +=
@@ -1232,45 +1080,45 @@ app.post(
         }
 
         message +=
-          `%0A`;
+          ` — ${encodeURIComponent(
+            Number(item.price).toLocaleString(
+              "pt-PT"
+            )
+          )} ${STORE_CURRENCY}%0A`;
       }
 
       message +=
         `%0ATotal: ${encodeURIComponent(
-          total.toFixed(2)
-        )} ${encodeURIComponent(
-          STORE_CURRENCY
-        )}`;
+          total.toLocaleString(
+            "pt-PT"
+          )
+        )} ${STORE_CURRENCY}`;
 
       const whatsappUrl =
         `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
 
-      res.json({
+      res.status(201).json({
         ok: true,
-
-        orderId,
-
+        total,
         whatsappUrl
       });
     } catch (error) {
       console.error(
-        "ORDER ERROR:",
+        "ERRO AO CRIAR PEDIDO:",
         error
       );
 
-      res
-        .status(500)
-        .json({
-          error:
-            "Não foi possível criar o pedido."
-        });
+      res.status(500).json({
+        error:
+          "Não foi possível criar o pedido."
+      });
     }
   }
 );
 
-/* =========================
-   ADMIN — PEDIDOS
-========================= */
+// ======================================================
+// LISTAR PEDIDOS — ADMIN
+// ======================================================
 
 app.get(
   "/api/orders",
@@ -1278,25 +1126,27 @@ app.get(
   async (req, res) => {
     try {
       const result =
-        await pool.query(
-          `
-          SELECT *
+        await pool.query(`
+          SELECT
+            id,
+            customer_name,
+            customer_phone,
+            items_json,
+            total,
+            created_at
           FROM orders
           ORDER BY id DESC
-          LIMIT 100
-          `
-        );
+        `);
 
       const orders =
         result.rows.map(
-          row => {
+          (row) => {
             let items = [];
 
             try {
               items =
                 JSON.parse(
-                  row.items_json ||
-                    "[]"
+                  row.items_json || "[]"
                 );
             } catch {
               items = [];
@@ -1304,20 +1154,13 @@ app.get(
 
             return {
               id: row.id,
-
               customerName:
                 row.customer_name,
-
               customerPhone:
                 row.customer_phone,
-
               items,
-
               total:
-                Number(
-                  row.total
-                ),
-
+                Number(row.total),
               createdAt:
                 row.created_at
             };
@@ -1327,94 +1170,87 @@ app.get(
       res.json(orders);
     } catch (error) {
       console.error(
-        "ORDERS ERROR:",
+        "ERRO AO BUSCAR PEDIDOS:",
         error
       );
 
-      res
-        .status(500)
-        .json({
-          error:
-            "Não foi possível carregar os pedidos."
-        });
+      res.status(500).json({
+        error:
+          "Não foi possível carregar os pedidos."
+      });
     }
   }
 );
 
-/* =========================
-   FICHEIROS PÚBLICOS
-========================= */
+// ======================================================
+// ARQUIVOS PÚBLICOS
+// ======================================================
 
 app.use(
   express.static(
     path.join(
       __dirname,
       "public"
-    ),
-    {
-      index:
-        "index.html"
-    }
+    )
   )
 );
 
-/* =========================
-   FALLBACK
-========================= */
+// ======================================================
+// FALLBACK PARA A LOJA
+// ======================================================
 
-app.get(
-  "*",
-  (req, res) => {
-    res.sendFile(
-      path.join(
-        __dirname,
-        "public",
-        "index.html"
-      )
-    );
+app.use(
+  (req, res, next) => {
+    if (
+      req.method === "GET" &&
+      !req.path.startsWith("/api/")
+    ) {
+      return res.sendFile(
+        path.join(
+          __dirname,
+          "public",
+          "index.html"
+        )
+      );
+    }
+
+    next();
   }
 );
 
-/* =========================
-   ERROS
-========================= */
+// ======================================================
+// ERROS
+// ======================================================
 
 app.use(
-  (
-    error,
-    req,
-    res,
-    next
-  ) => {
+  (err, req, res, next) => {
     console.error(
-      "SERVER ERROR:",
-      error
+      "ERRO:",
+      err
     );
 
     if (
-      error.code ===
+      err.code ===
       "EBADCSRFTOKEN"
     ) {
-      return res
-        .status(403)
-        .json({
-          error:
-            "Token CSRF inválido."
-        });
+      return res.status(403).json({
+        error:
+          "Invalid CSRF token."
+      });
     }
 
-    res
-      .status(500)
-      .json({
-        error:
-          "Erro interno do servidor."
-      });
+    res.status(
+      err.status || 500
+    ).json({
+      error:
+        "Erro interno do servidor."
+    });
   }
 );
 
-/* =========================
-   INICIAR
-========================= */
+// ======================================================
+// INICIAR
+// ======================================================
 
 initDatabase()
   .then(() => {
@@ -1422,14 +1258,14 @@ initDatabase()
       PORT,
       () => {
         console.log(
-          `Lumexa Store running on port ${PORT}`
+          `Lumexa Store rodando na porta ${PORT}`
         );
       }
     );
   })
-  .catch(error => {
+  .catch((error) => {
     console.error(
-      "DATABASE START ERROR:",
+      "Falha ao inicializar o banco de dados:",
       error
     );
 
