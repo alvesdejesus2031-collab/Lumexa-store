@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="pt">
-
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
 
   <meta
-    name="viewport"
-    content="width=device-width,initial-scale=1"
+    name="description"
+    content="Painel administrativo da Lumexa Store."
   >
 
   <title>Lumexa Store — Administração</title>
@@ -20,237 +20,313 @@
 <body>
 
 <header>
-
   <div class="brand">
-    LUMEXA <span>ADMIN</span>
+    LUMEXA <span>STORE</span>
   </div>
 
   <button
-    id="logout"
+    id="logoutBtn"
+    class="ghost"
     type="button"
   >
     Sair
   </button>
-
 </header>
 
-<main style="padding:30px 6%">
+<main>
 
-  <h1>
-    Painel de administração
-  </h1>
+  <section class="adminHero">
+    <p class="eyebrow">
+      LUMEXA STORE
+    </p>
 
-  <p>
-    Produtos, tamanhos, disponibilidade e pedidos.
-  </p>
+    <h1>
+      Administração
+    </h1>
 
-  <section
-    class="panel"
-    style="
-      width:100%;
-      max-width:900px;
-      margin:20px 0
-    "
-  >
+    <p>
+      Gerencie produtos, categorias,
+      tamanhos, disponibilidade e pedidos.
+    </p>
+  </section>
 
-    <h2>
-      Novo / editar produto
-    </h2>
 
-    <input
-      id="id"
-      type="hidden"
-    >
+  <!-- =========================
+       PRODUTO
+  ========================== -->
 
-    <input
-      id="name"
-      placeholder="Nome do produto"
-    >
+  <section class="adminSection">
 
-    <input
-      id="category"
-      placeholder="Categoria"
-    >
+    <div class="sectionTitle">
+      <div>
+        <h2 id="formTitle">
+          Adicionar produto
+        </h2>
 
-    <input
-      id="price"
-      type="number"
-      min="0"
-      placeholder="Preço em AOA"
-    >
-
-    <!-- TIPO DE TAMANHO -->
-
-    <label
-      style="
-        display:block;
-        margin:15px 0 8px
-      "
-    >
-      Tipo de tamanho:
-    </label>
-
-    <select
-      id="sizeType"
-      style="
-        width:100%;
-        padding:12px;
-        border:1px solid #ddd;
-        border-radius:12px
-      "
-    >
-
-      <option value="">
-        Sem tamanho
-      </option>
-
-      <option value="shirt">
-        Camisa — S, M, L, XL, XXL
-      </option>
-
-      <option value="pants">
-        Calça — 32, 34, 36, 38, 40, 42, 44
-      </option>
-
-      <option value="shoe">
-        Sapato — 38, 39, 40, 41, 42, 43, 44
-      </option>
-
-    </select>
-
-    <!-- TAMANHOS -->
-
-    <div
-      id="sizesBox"
-      style="margin-top:15px"
-    >
-
-      <p>
-        Selecione os tamanhos disponíveis:
-      </p>
-
-      <div
-        id="sizeOptions"
-        style="
-          display:flex;
-          flex-wrap:wrap;
-          gap:10px
-        "
-      ></div>
-
+        <p class="muted">
+          Preencha os dados do produto.
+        </p>
+      </div>
     </div>
 
-    <!-- IMAGEM -->
 
-    <label
-      style="
-        display:block;
-        margin:20px 0 15px
-      "
-    >
+    <form id="productForm">
 
-      Imagem do produto:
+      <input
+        type="hidden"
+        id="productId"
+      >
+
+
+      <label for="name">
+        Nome do produto
+      </label>
+
+      <input
+        id="name"
+        type="text"
+        placeholder="Ex.: Camiseta Nike"
+        maxlength="200"
+        required
+      >
+
+
+      <label for="category">
+        Categoria
+      </label>
+
+      <input
+        id="category"
+        type="text"
+        placeholder="Ex.: Roupas"
+        maxlength="100"
+        required
+      >
+
+
+      <label for="type">
+        Tipo
+      </label>
+
+      <input
+        id="type"
+        type="text"
+        placeholder="Ex.: Camiseta"
+        maxlength="100"
+      >
+
+
+      <label for="price">
+        Preço (Kz)
+      </label>
+
+      <input
+        id="price"
+        type="number"
+        min="0"
+        step="0.01"
+        placeholder="Ex.: 15000"
+        required
+      >
+
+
+      <label for="description">
+        Descrição
+      </label>
+
+      <textarea
+        id="description"
+        rows="5"
+        maxlength="5000"
+        placeholder="Descrição do produto..."
+      ></textarea>
+
+
+      <!-- =========================
+           TAMANHOS
+      ========================== -->
+
+      <label for="sizeType">
+        Tipo de tamanho
+      </label>
+
+      <select id="sizeType">
+
+        <option value="">
+          Sem tamanhos
+        </option>
+
+        <option value="shirt">
+          👕 Camiseta / Camisa
+        </option>
+
+        <option value="pants">
+          👖 Calças
+        </option>
+
+        <option value="shoe">
+          👟 Calçado
+        </option>
+
+      </select>
+
+
+      <div
+        id="sizesBox"
+        class="sizesBox hidden"
+      >
+
+        <p>
+          Selecione os tamanhos disponíveis:
+        </p>
+
+        <div
+          id="sizeOptions"
+          class="sizeOptions"
+        ></div>
+
+      </div>
+
+
+      <!-- =========================
+           DISPONIBILIDADE
+      ========================== -->
+
+      <label class="checkRow">
+
+        <input
+          id="available"
+          type="checkbox"
+          checked
+        >
+
+        <span>
+          Produto disponível
+        </span>
+
+      </label>
+
+
+      <!-- =========================
+           IMAGEM
+      ========================== -->
+
+      <label for="imageFile">
+        Imagem do produto
+      </label>
 
       <input
         id="imageFile"
         type="file"
         accept="image/*"
-        style="
-          display:block;
-          margin-top:8px
-        "
       >
-
-    </label>
-
-    <img
-      id="imagePreview"
-      alt="Pré-visualização"
-      style="
-        display:none;
-        width:160px;
-        height:160px;
-        object-fit:cover;
-        border-radius:14px;
-        margin:10px 0
-      "
-    >
-
-    <!-- DESCRIÇÃO -->
-
-    <textarea
-      id="description"
-      placeholder="Descrição do produto"
-      style="
-        width:100%;
-        margin-top:10px;
-        padding:14px;
-        border:1px solid #ddd;
-        border-radius:12px;
-        min-height:100px;
-      "
-    ></textarea>
-
-    <!-- DISPONIBILIDADE -->
-
-    <label
-      style="
-        display:block;
-        margin:12px 0
-      "
-    >
 
       <input
-        id="available"
-        type="checkbox"
-        checked
+        type="hidden"
+        id="image"
       >
 
-      Disponível
 
-    </label>
+      <div
+        id="imagePreview"
+        class="imagePreview"
+      ></div>
 
-    <button
-      id="save"
-      type="button"
-    >
-      Guardar produto
-    </button>
 
-    <button
-      class="ghost"
-      id="clear"
-      type="button"
-    >
-      Limpar
-    </button>
+      <!-- =========================
+           BOTÕES
+      ========================== -->
 
-    <p
-      id="message"
-      style="margin-top:12px"
-    ></p>
+      <div class="formActions">
+
+        <button
+          id="saveBtn"
+          type="submit"
+        >
+          Guardar produto
+        </button>
+
+        <button
+          id="clearBtn"
+          class="ghost"
+          type="button"
+        >
+          Limpar
+        </button>
+
+      </div>
+
+    </form>
 
   </section>
 
-  <h2>
-    Produtos
-  </h2>
 
-  <div
-    id="list"
-    class="grid"
-  ></div>
+  <!-- =========================
+       PRODUTOS
+  ========================== -->
 
-  <h2>
-    Pedidos recentes
-  </h2>
+  <section class="adminSection">
 
-  <div id="orders"></div>
+    <div class="sectionTitle">
+
+      <div>
+        <h2>
+          Produtos
+        </h2>
+
+        <p class="muted">
+          Produtos guardados na loja.
+        </p>
+      </div>
+
+    </div>
+
+
+    <div
+      id="productsList"
+      class="adminGrid"
+    ></div>
+
+  </section>
+
+
+  <!-- =========================
+       PEDIDOS
+  ========================== -->
+
+  <section class="adminSection">
+
+    <div class="sectionTitle">
+
+      <div>
+        <h2>
+          Pedidos recentes
+        </h2>
+
+        <p class="muted">
+          Pedidos recebidos através da loja.
+        </p>
+      </div>
+
+    </div>
+
+
+    <div
+      id="ordersList"
+      class="ordersList"
+    ></div>
+
+  </section>
 
 </main>
+
+
+<footer>
+  Lumexa Store · Administração
+</footer>
+
 
 <script src="/admin.js"></script>
 
 </body>
-
 </html>
