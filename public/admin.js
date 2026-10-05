@@ -1,7 +1,4 @@
-let products = [];
-let currentProducts = [];
-let csrfToken = "";
-let selectedImage = "";
+"use strict";
 
 const SIZE_OPTIONS = {
   shirt: ["S", "M", "L", "XL", "XXL"],
@@ -9,78 +6,154 @@ const SIZE_OPTIONS = {
   shoe: ["38", "39", "40", "41", "42", "43", "44"]
 };
 
-const id = (name) => document.getElementById(name);
+let csrfToken = "";
+let products = [];
+let editingId = null;
 
-const elements = {
-  formId: id("id"),
-  name: id("name"),
-  category: id("category"),
-  price: id("price"),
-  sizeType: id("sizeType"),
-  sizesBox: id("sizesBox"),
-  sizeOptions: id("sizeOptions"),
-  imageFile: id("imageFile"),
-  imagePreview: id("imagePreview"),
-  description: id("description"),
-  available: id("available"),
-  save: id("save"),
-  clear: id("clear"),
-  message: id("message"),
-  list: id("list"),
-  orders: id("orders"),
-  logout: id("logout")
-};
+const form =
+  document.getElementById("productForm");
 
-async function getCsrf() {
-  const response = await fetch("/api/csrf");
+const productId =
+  document.getElementById("productId");
 
-  if (!response.ok) {
-    throw new Error("Não foi possível obter o token de segurança.");
+const nameInput =
+  document.getElementById("name");
+
+const categoryInput =
+  document.getElementById("category");
+
+const typeInput =
+  document.getElementById("type");
+
+const priceInput =
+  document.getElementById("price");
+
+const descriptionInput =
+  document.getElementById("description");
+
+const sizeType =
+  document.getElementById("sizeType");
+
+const sizesBox =
+  document.getElementById("sizesBox");
+
+const sizeOptions =
+  document.getElementById("sizeOptions");
+
+const availableInput =
+  document.getElementById("available");
+
+const imageFile =
+  document.getElementById("imageFile");
+
+const imageInput =
+  document.getElementById("image");
+
+const imagePreview =
+  document.getElementById("imagePreview");
+
+const saveBtn =
+  document.getElementById("saveBtn");
+
+const clearBtn =
+  document.getElementById("clearBtn");
+
+const formTitle =
+  document.getElementById("formTitle");
+
+const productsList =
+  document.getElementById("productsList");
+
+const ordersList =
+  document.getElementById("ordersList");
+
+const logoutBtn =
+  document.getElementById("logoutBtn");
+
+
+/* =========================
+   CSRF
+========================= */
+
+async function getCsrfToken() {
+  const response =
+    await fetch("/api/csrf", {
+      credentials: "same-origin"
+    });
+
+  const data =
+    await response.json();
+
+  if (!response.ok || !data.csrfToken) {
+    throw new Error(
+      "Não foi possível obter o token de segurança."
+    );
   }
 
-  const data = await response.json();
-  csrfToken = data.csrfToken;
+  csrfToken =
+    data.csrfToken;
 
   return csrfToken;
 }
 
-async function api(url, options = {}) {
-  const method = (options.method || "GET").toUpperCase();
+
+/* =========================
+   API
+========================= */
+
+async function api(
+  url,
+  options = {}
+) {
+  const method =
+    (options.method || "GET").toUpperCase();
 
   const headers = {
     ...(options.headers || {})
   };
 
-  if (method !== "GET") {
+  if (
+    method !== "GET" &&
+    method !== "HEAD"
+  ) {
     if (!csrfToken) {
-      await getCsrf();
+      await getCsrfToken();
     }
 
-    headers["Content-Type"] = "application/json";
-    headers["CSRF-Token"] = csrfToken;
+    headers["CSRF-Token"] =
+      csrfToken;
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers
-  });
+  const response =
+    await fetch(url, {
+      ...options,
+      headers,
+      credentials:
+        "same-origin"
+    });
 
-  if (response.status === 401) {
+  if (
+    response.status === 401
+  ) {
     window.location.href = "/";
-    return null;
+    throw new Error(
+      "Sessão expirada."
+    );
   }
 
   let data = {};
 
   try {
-    data = await response.json();
+    data =
+      await response.json();
   } catch {
     data = {};
   }
 
   if (!response.ok) {
     throw new Error(
-      data.error || "Ocorreu um erro."
+      data.error ||
+      "Ocorreu um erro."
     );
   }
 
@@ -92,194 +165,461 @@ async function api(url, options = {}) {
    TAMANHOS
 ========================= */
 
-function renderSizeOptions(selectedSizes = []) {
-  const type = elements.sizeType.value;
+function renderSizeOptions(
+  selected = []
+) {
+  const type =
+    sizeType.value;
 
-  elements.sizeOptions.innerHTML = "";
+  sizeOptions.innerHTML =
+    "";
 
-  if (!type || !SIZE_OPTIONS[type]) {
-    elements.sizesBox.style.display = "none";
+  if (!type) {
+    sizesBox.classList.add(
+      "hidden"
+    );
+
     return;
   }
 
-  elements.sizesBox.style.display = "block";
+  sizesBox.classList.remove(
+    "hidden"
+  );
 
-  SIZE_OPTIONS[type].forEach(size => {
-    const label = document.createElement("label");
+  const options =
+    SIZE_OPTIONS[type] || [];
 
-    label.style.cssText = `
-      display:flex;
-      align-items:center;
-      gap:6px;
-      padding:8px 12px;
-      border:1px solid #ddd;
-      border-radius:10px;
-      cursor:pointer;
-      background:#fff;
-    `;
+  options.forEach(size => {
+    const label =
+      document.createElement(
+        "label"
+      );
 
-    const checkbox = document.createElement("input");
+    label.className =
+      "sizeCheck";
 
-    checkbox.type = "checkbox";
-    checkbox.value = size;
-    checkbox.dataset.size = size;
+    const checkbox =
+      document.createElement(
+        "input"
+      );
 
-    if (selectedSizes.includes(size)) {
-      checkbox.checked = true;
-    }
+    checkbox.type =
+      "checkbox";
 
-    const text = document.createElement("span");
-    text.textContent = size;
+    checkbox.value =
+      size;
 
-    label.appendChild(checkbox);
-    label.appendChild(text);
+    checkbox.checked =
+      selected.includes(size);
 
-    elements.sizeOptions.appendChild(label);
+    const span =
+      document.createElement(
+        "span"
+      );
+
+    span.textContent =
+      size;
+
+    label.appendChild(
+      checkbox
+    );
+
+    label.appendChild(
+      span
+    );
+
+    sizeOptions.appendChild(
+      label
+    );
   });
 }
 
+
 function getSelectedSizes() {
   return [
-    ...elements.sizeOptions.querySelectorAll(
+    ...sizeOptions.querySelectorAll(
       'input[type="checkbox"]:checked'
     )
-  ].map(input => input.value);
+  ].map(
+    checkbox =>
+      checkbox.value
+  );
 }
+
+
+sizeType.addEventListener(
+  "change",
+  () => {
+    renderSizeOptions([]);
+  }
+);
 
 
 /* =========================
    IMAGEM
 ========================= */
 
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+function showImagePreview(
+  src
+) {
+  imagePreview.innerHTML =
+    "";
 
-    reader.onload = () => {
-      const image = new Image();
+  if (!src) {
+    return;
+  }
 
-      image.onload = () => {
-        const maxSize = 1000;
+  const image =
+    document.createElement(
+      "img"
+    );
 
-        let width = image.width;
-        let height = image.height;
+  image.src =
+    src;
 
-        if (width > maxSize || height > maxSize) {
-          if (width > height) {
-            height =
-              Math.round(
-                height * maxSize / width
-              );
+  image.alt =
+    "Pré-visualização";
 
-            width = maxSize;
-          } else {
-            width =
-              Math.round(
-                width * maxSize / height
-              );
-
-            height = maxSize;
-          }
-        }
-
-        const canvas =
-          document.createElement("canvas");
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const context =
-          canvas.getContext("2d");
-
-        context.drawImage(
-          image,
-          0,
-          0,
-          width,
-          height
-        );
-
-        resolve(
-          canvas.toDataURL(
-            "image/jpeg",
-            0.78
-          )
-        );
-      };
-
-      image.onerror = () => {
-        reject(
-          new Error(
-            "Não foi possível carregar a imagem."
-          )
-        );
-      };
-
-      image.src = reader.result;
-    };
-
-    reader.onerror = () => {
-      reject(
-        new Error(
-          "Não foi possível ler a imagem."
-        )
-      );
-    };
-
-    reader.readAsDataURL(file);
-  });
+  imagePreview.appendChild(
+    image
+  );
 }
 
-elements.imageFile.addEventListener(
+
+function compressImage(
+  file
+) {
+  return new Promise(
+    (resolve, reject) => {
+      const reader =
+        new FileReader();
+
+      reader.onload = () => {
+        const image =
+          new Image();
+
+        image.onload = () => {
+          const maxSize =
+            1000;
+
+          let width =
+            image.width;
+
+          let height =
+            image.height;
+
+          if (
+            width >
+              maxSize ||
+            height >
+              maxSize
+          ) {
+            if (
+              width >
+              height
+            ) {
+              height =
+                Math.round(
+                  height *
+                    (maxSize /
+                      width)
+                );
+
+              width =
+                maxSize;
+            } else {
+              width =
+                Math.round(
+                  width *
+                    (maxSize /
+                      height)
+                );
+
+              height =
+                maxSize;
+            }
+          }
+
+          const canvas =
+            document.createElement(
+              "canvas"
+            );
+
+          canvas.width =
+            width;
+
+          canvas.height =
+            height;
+
+          const ctx =
+            canvas.getContext(
+              "2d"
+            );
+
+          ctx.drawImage(
+            image,
+            0,
+            0,
+            width,
+            height
+          );
+
+          resolve(
+            canvas.toDataURL(
+              "image/jpeg",
+              0.78
+            )
+          );
+        };
+
+        image.onerror =
+          () =>
+            reject(
+              new Error(
+                "Imagem inválida."
+              )
+            );
+
+        image.src =
+          reader.result;
+      };
+
+      reader.onerror =
+        () =>
+          reject(
+            new Error(
+              "Não foi possível ler a imagem."
+            )
+          );
+
+      reader.readAsDataURL(
+        file
+      );
+    }
+  );
+}
+
+
+imageFile.addEventListener(
   "change",
   async () => {
     const file =
-      elements.imageFile.files[0];
+      imageFile.files &&
+      imageFile.files[0];
 
     if (!file) {
       return;
     }
 
+    if (
+      !file.type.startsWith(
+        "image/"
+      )
+    ) {
+      alert(
+        "Escolha uma imagem válida."
+      );
+
+      imageFile.value =
+        "";
+
+      return;
+    }
+
     try {
-      if (!file.type.startsWith("image/")) {
-        throw new Error(
-          "Escolha um ficheiro de imagem."
+      saveBtn.disabled =
+        true;
+
+      saveBtn.textContent =
+        "A preparar imagem...";
+
+      const compressed =
+        await compressImage(
+          file
         );
-      }
 
-      selectedImage =
-        await compressImage(file);
+      imageInput.value =
+        compressed;
 
-      elements.imagePreview.src =
-        selectedImage;
-
-      elements.imagePreview.style.display =
-        "block";
-
-      elements.message.textContent =
-        "Imagem carregada.";
+      showImagePreview(
+        compressed
+      );
     } catch (error) {
-      selectedImage = "";
+      alert(
+        error.message
+      );
+    } finally {
+      saveBtn.disabled =
+        false;
 
-      elements.imagePreview.src = "";
-      elements.imagePreview.style.display =
-        "none";
-
-      elements.message.textContent =
-        error.message;
+      saveBtn.textContent =
+        editingId
+          ? "Atualizar produto"
+          : "Guardar produto";
     }
   }
 );
 
 
 /* =========================
-   TAMANHO
+   FORMULÁRIO
 ========================= */
 
-elements.sizeType.addEventListener(
-  "change",
-  () => {
-    renderSizeOptions([]);
+form.addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
+
+    const name =
+      nameInput.value.trim();
+
+    const category =
+      categoryInput.value.trim();
+
+    const type =
+      typeInput.value.trim();
+
+    const price =
+      Number(
+        priceInput.value
+      );
+
+    const description =
+      descriptionInput.value.trim();
+
+    const selectedSizes =
+      getSelectedSizes();
+
+    if (!name) {
+      alert(
+        "Digite o nome do produto."
+      );
+
+      return;
+    }
+
+    if (!category) {
+      alert(
+        "Digite a categoria."
+      );
+
+      return;
+    }
+
+    if (
+      !Number.isFinite(price) ||
+      price < 0
+    ) {
+      alert(
+        "Digite um preço válido."
+      );
+
+      return;
+    }
+
+    if (
+      sizeType.value &&
+      selectedSizes.length === 0
+    ) {
+      alert(
+        "Selecione pelo menos um tamanho."
+      );
+
+      return;
+    }
+
+    const product = {
+      name,
+
+      category,
+
+      type,
+
+      description,
+
+      price,
+
+      image:
+        imageInput.value || "",
+
+      available:
+        availableInput.checked,
+
+      sizeType:
+        sizeType.value,
+
+      sizes:
+        selectedSizes
+    };
+
+    try {
+      saveBtn.disabled =
+        true;
+
+      saveBtn.textContent =
+        editingId
+          ? "A atualizar..."
+          : "A guardar...";
+
+      if (editingId) {
+        await api(
+          `/api/products/${editingId}`,
+          {
+            method: "PUT",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body:
+              JSON.stringify(
+                product
+              )
+          }
+        );
+      } else {
+        await api(
+          "/api/products",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body:
+              JSON.stringify(
+                product
+              )
+          }
+        );
+      }
+
+      alert(
+        editingId
+          ? "Produto atualizado com sucesso."
+          : "Produto guardado com sucesso."
+      );
+
+      clearForm();
+
+      await loadProducts();
+
+    } catch (error) {
+      alert(
+        error.message
+      );
+    } finally {
+      saveBtn.disabled =
+        false;
+
+      saveBtn.textContent =
+        editingId
+          ? "Atualizar produto"
+          : "Guardar produto";
+    }
   }
 );
 
@@ -289,147 +629,306 @@ elements.sizeType.addEventListener(
 ========================= */
 
 function clearForm() {
-  elements.formId.value = "";
-  elements.name.value = "";
-  elements.category.value = "";
-  elements.price.value = "";
-  elements.description.value = "";
+  editingId =
+    null;
 
-  elements.sizeType.value = "";
+  productId.value =
+    "";
 
-  renderSizeOptions([]);
+  nameInput.value =
+    "";
 
-  elements.available.checked = true;
+  categoryInput.value =
+    "";
 
-  elements.imageFile.value = "";
+  typeInput.value =
+    "";
 
-  selectedImage = "";
+  priceInput.value =
+    "";
 
-  elements.imagePreview.src = "";
-  elements.imagePreview.style.display =
-    "none";
+  descriptionInput.value =
+    "";
 
-  elements.message.textContent = "";
+  sizeType.value =
+    "";
 
-  elements.save.textContent =
+  availableInput.checked =
+    true;
+
+  imageFile.value =
+    "";
+
+  imageInput.value =
+    "";
+
+  imagePreview.innerHTML =
+    "";
+
+  sizesBox.classList.add(
+    "hidden"
+  );
+
+  sizeOptions.innerHTML =
+    "";
+
+  formTitle.textContent =
+    "Adicionar produto";
+
+  saveBtn.textContent =
     "Guardar produto";
 }
 
-elements.clear.addEventListener(
+
+clearBtn.addEventListener(
   "click",
   clearForm
 );
 
 
 /* =========================
-   EDITAR PRODUTO
+   PRODUTOS
 ========================= */
 
-function editProduct(product) {
-  elements.formId.value = product.id;
-  elements.name.value =
-    product.name || "";
-
-  elements.category.value =
-    product.category || "";
-
-  elements.price.value =
-    product.price ?? "";
-
-  elements.description.value =
-    product.description || "";
-
-  elements.available.checked =
-    !!product.available;
-
-  elements.sizeType.value =
-    product.sizeType || "";
-
-  renderSizeOptions(
-    Array.isArray(product.sizes)
-      ? product.sizes
-      : []
-  );
-
-  selectedImage =
-    product.image || "";
-
-  if (selectedImage) {
-    elements.imagePreview.src =
-      selectedImage;
-
-    elements.imagePreview.style.display =
-      "block";
-  } else {
-    elements.imagePreview.src = "";
-    elements.imagePreview.style.display =
-      "none";
-  }
-
-  elements.save.textContent =
-    "Atualizar produto";
-
-  elements.message.textContent =
-    "Editando produto.";
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
-}
-
-
-/* =========================
-   APAGAR PRODUTO
-========================= */
-
-async function deleteProduct(productId) {
-  const product =
-    currentProducts.find(
-      item =>
-        Number(item.id) ===
-        Number(productId)
-    );
-
-  if (!product) {
-    return;
-  }
-
-  const confirmed =
-    window.confirm(
-      `Apagar "${product.name}"?`
-    );
-
-  if (!confirmed) {
-    return;
-  }
-
+async function loadProducts() {
   try {
-    await api(
-      `/api/products/${product.id}`,
-      {
-        method: "DELETE"
-      }
-    );
+    products =
+      await api(
+        "/api/products"
+      );
 
-    elements.message.textContent =
-      "Produto apagado.";
+    renderProducts();
 
-    await loadProducts();
   } catch (error) {
-    elements.message.textContent =
-      error.message;
+    productsList.innerHTML =
+      `<p class="muted">${escapeHtml(
+        error.message
+      )}</p>`;
   }
 }
 
 
+function renderProducts() {
+  productsList.innerHTML =
+    "";
+
+  if (!products.length) {
+    productsList.innerHTML =
+      `<p class="muted">
+        Ainda não existem produtos.
+      </p>`;
+
+    return;
+  }
+
+  products.forEach(
+    product => {
+      const card =
+        document.createElement(
+          "article"
+        );
+
+      card.className =
+        "adminCard";
+
+      if (product.image) {
+        const image =
+          document.createElement(
+            "img"
+          );
+
+        image.src =
+          product.image;
+
+        image.alt =
+          product.name;
+
+        image.className =
+          "adminProductImage";
+
+        card.appendChild(
+          image
+        );
+      }
+
+      const content =
+        document.createElement(
+          "div"
+        );
+
+      content.className =
+        "adminCardContent";
+
+      const title =
+        document.createElement(
+          "h3"
+        );
+
+      title.textContent =
+        product.name;
+
+      const category =
+        document.createElement(
+          "p"
+        );
+
+      category.innerHTML =
+        `<strong>Categoria:</strong> ${escapeHtml(
+          product.category
+        )}`;
+
+      const type =
+        document.createElement(
+          "p"
+        );
+
+      type.innerHTML =
+        `<strong>Tipo:</strong> ${escapeHtml(
+          product.type || "—"
+        )}`;
+
+      const price =
+        document.createElement(
+          "p"
+        );
+
+      price.innerHTML =
+        `<strong>Preço:</strong> ${formatMoney(
+          product.price
+        )}`;
+
+      const availability =
+        document.createElement(
+          "p"
+        );
+
+      availability.innerHTML =
+        `<strong>Estado:</strong> ${
+          product.available
+            ? "Disponível"
+            : "Indisponível"
+        }`;
+
+      const sizes =
+        document.createElement(
+          "p"
+        );
+
+      if (
+        product.sizeType &&
+        product.sizes.length
+      ) {
+        sizes.innerHTML =
+          `<strong>Tamanhos:</strong> ${product.sizes
+            .map(
+              escapeHtml
+            )
+            .join(", ")}`;
+      } else {
+        sizes.innerHTML =
+          `<strong>Tamanhos:</strong> Sem tamanhos`;
+      }
+
+      const buttons =
+        document.createElement(
+          "div"
+        );
+
+      buttons.className =
+        "cardActions";
+
+      const editButton =
+        document.createElement(
+          "button"
+        );
+
+      editButton.type =
+        "button";
+
+      editButton.textContent =
+        "Editar";
+
+      editButton.dataset.action =
+        "edit";
+
+      editButton.dataset.id =
+        product.id;
+
+      const deleteButton =
+        document.createElement(
+          "button"
+        );
+
+      deleteButton.type =
+        "button";
+
+      deleteButton.className =
+        "danger";
+
+      deleteButton.textContent =
+        "Eliminar";
+
+      deleteButton.dataset.action =
+        "delete";
+
+      deleteButton.dataset.id =
+        product.id;
+
+      buttons.appendChild(
+        editButton
+      );
+
+      buttons.appendChild(
+        deleteButton
+      );
+
+      content.appendChild(
+        title
+      );
+
+      content.appendChild(
+        category
+      );
+
+      content.appendChild(
+        type
+      );
+
+      content.appendChild(
+        price
+      );
+
+      content.appendChild(
+        availability
+      );
+
+      content.appendChild(
+        sizes
+      );
+
+      content.appendChild(
+        buttons
+      );
+
+      card.appendChild(
+        content
+      );
+
+      productsList.appendChild(
+        card
+      );
+    }
+  );
+}
+
+
 /* =========================
-   EVENTOS DOS PRODUTOS
+   AÇÕES DOS PRODUTOS
 ========================= */
 
-elements.list.addEventListener(
+productsList.addEventListener(
   "click",
-  event => {
+  async event => {
     const button =
       event.target.closest(
         "button[data-action]"
@@ -439,14 +938,16 @@ elements.list.addEventListener(
       return;
     }
 
-    const productId =
-      Number(button.dataset.id);
+    const id =
+      Number(
+        button.dataset.id
+      );
 
     const product =
-      currentProducts.find(
+      products.find(
         item =>
           Number(item.id) ===
-          productId
+          id
       );
 
     if (!product) {
@@ -457,298 +958,103 @@ elements.list.addEventListener(
       button.dataset.action ===
       "edit"
     ) {
-      editProduct(product);
+      editProduct(
+        product
+      );
+
+      return;
     }
 
     if (
       button.dataset.action ===
       "delete"
     ) {
-      deleteProduct(productId);
+      const confirmed =
+        confirm(
+          `Eliminar "${product.name}"?`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        await api(
+          `/api/products/${id}`,
+          {
+            method: "DELETE"
+          }
+        );
+
+        await loadProducts();
+
+      } catch (error) {
+        alert(
+          error.message
+        );
+      }
     }
   }
 );
 
 
 /* =========================
-   GUARDAR PRODUTO
+   EDITAR
 ========================= */
 
-elements.save.addEventListener(
-  "click",
-  async () => {
-    try {
-      const name =
-        elements.name.value.trim();
+function editProduct(
+  product
+) {
+  editingId =
+    product.id;
 
-      const category =
-        elements.category.value.trim();
+  productId.value =
+    product.id;
 
-      const price =
-        Number(elements.price.value);
+  nameInput.value =
+    product.name || "";
 
-      const sizeType =
-        elements.sizeType.value;
+  categoryInput.value =
+    product.category || "";
 
-      const sizes =
-        getSelectedSizes();
+  typeInput.value =
+    product.type || "";
 
-      if (!name) {
-        throw new Error(
-          "Digite o nome do produto."
-        );
-      }
+  priceInput.value =
+    product.price ?? "";
 
-      if (!category) {
-        throw new Error(
-          "Digite a categoria."
-        );
-      }
+  descriptionInput.value =
+    product.description || "";
 
-      if (
-        !Number.isInteger(price) ||
-        price < 0
-      ) {
-        throw new Error(
-          "Digite um preço válido."
-        );
-      }
-
-      if (
-        sizeType &&
-        sizes.length === 0
-      ) {
-        throw new Error(
-          "Selecione pelo menos um tamanho."
-        );
-      }
-
-      const product = {
-        name,
-        category,
-        price,
-        description:
-          elements.description.value,
-
-        image: selectedImage,
-
-        available:
-          elements.available.checked,
-
-        sizeType,
-        sizes
-      };
-
-      const productId =
-        elements.formId.value;
-
-      if (productId) {
-        await api(
-          `/api/products/${productId}`,
-          {
-            method: "PUT",
-            body: JSON.stringify(product)
-          }
-        );
-
-        elements.message.textContent =
-          "Produto atualizado com sucesso.";
-      } else {
-        await api(
-          "/api/products",
-          {
-            method: "POST",
-            body: JSON.stringify(product)
-          }
-        );
-
-        elements.message.textContent =
-          "Produto criado com sucesso.";
-      }
-
-      clearForm();
-
-      await loadProducts();
-
-    } catch (error) {
-      elements.message.textContent =
-        error.message;
-    }
-  }
-);
-
-
-/* =========================
-   MOSTRAR PRODUTOS
-========================= */
-
-function renderProducts() {
-  elements.list.innerHTML = "";
-
-  if (!currentProducts.length) {
-    elements.list.innerHTML =
-      "<p>Nenhum produto cadastrado.</p>";
-
-    return;
-  }
-
-  currentProducts.forEach(product => {
-    const card =
-      document.createElement("article");
-
-    card.className = "panel";
-
-    card.style.cssText = `
-      width:100%;
-      max-width:420px;
-    `;
-
-    if (product.image) {
-      const image =
-        document.createElement("img");
-
-      image.src = product.image;
-      image.alt = product.name;
-
-      image.style.cssText = `
-        width:100%;
-        height:220px;
-        object-fit:cover;
-        border-radius:14px;
-        margin-bottom:12px;
-      `;
-
-      card.appendChild(image);
-    }
-
-    const title =
-      document.createElement("h3");
-
-    title.textContent =
-      product.name;
-
-    card.appendChild(title);
-
-    const category =
-      document.createElement("p");
-
-    category.textContent =
-      `Categoria: ${product.category}`;
-
-    card.appendChild(category);
-
-    const price =
-      document.createElement("p");
-
-    price.textContent =
-      `Preço: ${Number(product.price).toLocaleString("pt-AO")} AOA`;
-
-    card.appendChild(price);
-
-    const availability =
-      document.createElement("p");
-
-    availability.textContent =
+  availableInput.checked =
+    Boolean(
       product.available
-        ? "Disponível"
-        : "Indisponível";
-
-    card.appendChild(
-      availability
     );
 
-    if (
-      product.sizeType &&
-      Array.isArray(product.sizes) &&
-      product.sizes.length
-    ) {
-      const sizes =
-        document.createElement("p");
+  imageInput.value =
+    product.image || "";
 
-      sizes.textContent =
-        `Tamanhos: ${product.sizes.join(", ")}`;
+  sizeType.value =
+    product.sizeType || "";
 
-      card.appendChild(sizes);
-    }
+  renderSizeOptions(
+    product.sizes || []
+  );
 
-    if (product.description) {
-      const description =
-        document.createElement("p");
+  showImagePreview(
+    product.image || ""
+  );
 
-      description.textContent =
-        product.description;
+  formTitle.textContent =
+    "Editar produto";
 
-      card.appendChild(description);
-    }
+  saveBtn.textContent =
+    "Atualizar produto";
 
-    const buttons =
-      document.createElement("div");
-
-    buttons.style.cssText = `
-      display:flex;
-      gap:10px;
-      margin-top:15px;
-      flex-wrap:wrap;
-    `;
-
-    const editButton =
-      document.createElement("button");
-
-    editButton.type = "button";
-    editButton.textContent = "Editar";
-    editButton.dataset.action = "edit";
-    editButton.dataset.id =
-      product.id;
-
-    const deleteButton =
-      document.createElement("button");
-
-    deleteButton.type = "button";
-    deleteButton.textContent = "Apagar";
-    deleteButton.dataset.action =
-      "delete";
-    deleteButton.dataset.id =
-      product.id;
-
-    deleteButton.className =
-      "ghost";
-
-    buttons.appendChild(editButton);
-    buttons.appendChild(deleteButton);
-
-    card.appendChild(buttons);
-
-    elements.list.appendChild(card);
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
   });
-}
-
-
-/* =========================
-   CARREGAR PRODUTOS
-========================= */
-
-async function loadProducts() {
-  try {
-    const data =
-      await api("/api/products");
-
-    if (!data) {
-      return;
-    }
-
-    products =
-      Array.isArray(data)
-        ? data
-        : [];
-
-    currentProducts = products;
-
-    renderProducts();
-
-  } catch (error) {
-    elements.list.innerHTML =
-      `<p>${error.message}</p>`;
-  }
 }
 
 
@@ -756,130 +1062,163 @@ async function loadProducts() {
    PEDIDOS
 ========================= */
 
-function renderOrders(orders) {
-  elements.orders.innerHTML = "";
+async function loadOrders() {
+  try {
+    const orders =
+      await api(
+        "/api/orders"
+      );
+
+    renderOrders(
+      orders
+    );
+
+  } catch (error) {
+    ordersList.innerHTML =
+      `<p class="muted">${escapeHtml(
+        error.message
+      )}</p>`;
+  }
+}
+
+
+function renderOrders(
+  orders
+) {
+  ordersList.innerHTML =
+    "";
 
   if (!orders.length) {
-    elements.orders.innerHTML =
-      "<p>Nenhum pedido recebido.</p>";
+    ordersList.innerHTML =
+      `<p class="muted">
+        Ainda não existem pedidos.
+      </p>`;
 
     return;
   }
 
-  orders.forEach(order => {
-    const box =
-      document.createElement("div");
-
-    box.className = "panel";
-
-    box.style.cssText = `
-      width:100%;
-      margin:12px 0;
-    `;
-
-    const title =
-      document.createElement("h3");
-
-    title.textContent =
-      `Pedido #${order.id}`;
-
-    box.appendChild(title);
-
-    const customer =
-      document.createElement("p");
-
-    customer.textContent =
-      `Cliente: ${order.customer_name}`;
-
-    box.appendChild(customer);
-
-    const phone =
-      document.createElement("p");
-
-    phone.textContent =
-      `Telefone: ${order.customer_phone}`;
-
-    box.appendChild(phone);
-
-    const status =
-      document.createElement("p");
-
-    status.textContent =
-      `Estado: ${order.status}`;
-
-    box.appendChild(status);
-
-    const total =
-      document.createElement("p");
-
-    total.textContent =
-      `Total: ${Number(order.total).toLocaleString("pt-AO")} AOA`;
-
-    box.appendChild(total);
-
-    let items = [];
-
-    try {
-      items =
-        JSON.parse(
-          order.items_json || "[]"
+  orders.forEach(
+    order => {
+      const card =
+        document.createElement(
+          "article"
         );
-    } catch {
-      items = [];
-    }
 
-    if (items.length) {
-      const list =
-        document.createElement("ul");
+      card.className =
+        "orderCard";
 
-      items.forEach(item => {
-        const li =
-          document.createElement("li");
+      const title =
+        document.createElement(
+          "h3"
+        );
 
-        let text =
-          `${item.name} x${item.qty}`;
+      title.textContent =
+        `Pedido #${order.id}`;
 
-        if (item.size) {
-          text +=
-            ` — Tamanho: ${item.size}`;
+      const customer =
+        document.createElement(
+          "p"
+        );
+
+      customer.innerHTML =
+        `<strong>Cliente:</strong> ${escapeHtml(
+          order.customerName
+        )}`;
+
+      const phone =
+        document.createElement(
+          "p"
+        );
+
+      phone.innerHTML =
+        `<strong>Telefone:</strong> ${escapeHtml(
+          order.customerPhone
+        )}`;
+
+      const items =
+        document.createElement(
+          "div"
+        );
+
+      items.className =
+        "orderItems";
+
+      (order.items || []).forEach(
+        item => {
+          const row =
+            document.createElement(
+              "p"
+            );
+
+          let text =
+            `${item.name} × ${item.qty}`;
+
+          if (item.size) {
+            text +=
+              ` — Tamanho: ${item.size}`;
+          }
+
+          row.textContent =
+            text;
+
+          items.appendChild(
+            row
+          );
         }
+      );
 
-        text +=
-          ` — ${Number(
-            item.price * item.qty
-          ).toLocaleString("pt-AO")} AOA`;
+      const total =
+        document.createElement(
+          "p"
+        );
 
-        li.textContent = text;
+      total.innerHTML =
+        `<strong>Total:</strong> ${formatMoney(
+          order.total
+        )}`;
 
-        list.appendChild(li);
-      });
+      const date =
+        document.createElement(
+          "p"
+        );
 
-      box.appendChild(list);
+      date.className =
+        "muted";
+
+      date.textContent =
+        formatDate(
+          order.createdAt
+        );
+
+      card.appendChild(
+        title
+      );
+
+      card.appendChild(
+        customer
+      );
+
+      card.appendChild(
+        phone
+      );
+
+      card.appendChild(
+        items
+      );
+
+      card.appendChild(
+        total
+      );
+
+      card.appendChild(
+        date
+      );
+
+      ordersList.appendChild(
+        card
+      );
     }
-
-    elements.orders.appendChild(box);
-  });
-}
-
-async function loadOrders() {
-  try {
-    const data =
-      await api("/api/orders");
-
-    if (!data) {
-      return;
-    }
-
-    renderOrders(
-      Array.isArray(data)
-        ? data
-        : []
-    );
-
-  } catch (error) {
-    elements.orders.innerHTML =
-      `<p>${error.message}</p>`;
-  }
+  );
 }
 
 
@@ -887,26 +1226,99 @@ async function loadOrders() {
    LOGOUT
 ========================= */
 
-elements.logout.addEventListener(
+logoutBtn.addEventListener(
   "click",
   async () => {
     try {
       await api(
         "/api/logout",
         {
-          method: "POST",
-          body: JSON.stringify({})
+          method: "POST"
         }
       );
 
-      window.location.href = "/";
+      window.location.href =
+        "/";
 
     } catch (error) {
-      elements.message.textContent =
-        error.message;
+      alert(
+        error.message
+      );
     }
   }
 );
+
+
+/* =========================
+   UTILITÁRIOS
+========================= */
+
+function escapeHtml(
+  value
+) {
+  return String(
+    value ?? ""
+  )
+    .replaceAll(
+      "&",
+      "&amp;"
+    )
+    .replaceAll(
+      "<",
+      "&lt;"
+    )
+    .replaceAll(
+      ">",
+      "&gt;"
+    )
+    .replaceAll(
+      '"',
+      "&quot;"
+    )
+    .replaceAll(
+      "'",
+      "&#039;"
+    );
+}
+
+
+function formatMoney(
+  value
+) {
+  return `${Number(
+    value || 0
+  ).toLocaleString(
+    "pt-PT",
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }
+  )} Kz`;
+}
+
+
+function formatDate(
+  value
+) {
+  if (!value) {
+    return "";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
+  }
+
+  return date.toLocaleString(
+    "pt-PT"
+  );
+}
 
 
 /* =========================
@@ -915,15 +1327,34 @@ elements.logout.addEventListener(
 
 async function init() {
   try {
-    await getCsrf();
+    await getCsrfToken();
+
+    const me =
+      await api(
+        "/api/me"
+      );
+
+    if (!me.loggedIn) {
+      window.location.href =
+        "/";
+
+      return;
+    }
+
+    renderSizeOptions([]);
 
     await loadProducts();
 
     await loadOrders();
 
   } catch (error) {
-    elements.message.textContent =
-      error.message;
+    console.error(
+      error
+    );
+
+    alert(
+      error.message
+    );
   }
 }
 
