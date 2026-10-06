@@ -1,1 +1,415 @@
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:#f7f7f8;color:#111}header{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 6%;background:#fff;border-bottom:1px solid #eee;position:sticky;top:0;z-index:5}.brand{font-weight:900;letter-spacing:2px}.brand span{font-weight:400}.hero{margin:28px 6%;border-radius:28px;padding:70px 7%;background:#111;color:#fff}.hero h1{font-size:clamp(40px,7vw,78px);line-height:.95;max-width:800px;margin:10px 0}.hero p{max-width:620px;color:#cfcfcf}.eyebrow{letter-spacing:3px!important;font-size:12px!important}.toolbar{display:flex;gap:12px;padding:10px 6%;max-width:1100px;margin:auto}.toolbar input,.toolbar select,.cart input,.panel input{padding:14px;border:1px solid #ddd;border-radius:12px;background:#fff;font:inherit}.toolbar input{flex:1}button{border:0;border-radius:12px;padding:13px 18px;background:#111;color:#fff;font:inherit;cursor:pointer}.ghost{background:#fff;color:#111;border:1px solid #ddd}.grid{padding:24px 6% 80px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px}.card{background:#fff;border:1px solid #eee;border-radius:18px;overflow:hidden}.pic{height:230px;background:#e9e9ec;display:flex;align-items:center;justify-content:center;color:#888}.pic img{width:100%;height:100%;object-fit:cover}.body{padding:16px}.body h3{margin:0 0 6px}.price{font-weight:800;margin:12px 0}.unavailable{opacity:.55}.badge{font-size:12px;background:#eee;padding:5px 8px;border-radius:20px}.cart{position:fixed;right:20px;bottom:20px;width:min(400px,calc(100% - 40px));background:#fff;border:1px solid #ddd;border-radius:20px;padding:20px;box-shadow:0 20px 60px #0002;z-index:10;display:none}.cart.open{display:block}.cartHead{display:flex;justify-content:space-between;align-items:center}.cartHead button,.close{background:transparent;color:#111;padding:5px;font-size:24px}.cart input{width:100%;margin:6px 0}.cart .total{font-weight:900;margin:15px 0}.cartItem{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}.modal{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;z-index:20}.hidden{display:none}.panel{background:#fff;padding:28px;border-radius:20px;width:min(420px,92%);position:relative}.panel input,.panel button{width:100%;margin-top:10px}.close{position:absolute;right:12px;top:8px}.muted{color:#777}footer{text-align:center;padding:30px;color:#777}@media(max-width:600px){.hero{margin:14px;padding:45px 25px}.grid{padding-left:4%;padding-right:4%}}
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f7f7f7;
+  color: #171717;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* =========================
+   CABEÇALHO
+========================= */
+
+header {
+  min-height: 64px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #111;
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.brand {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.brand span {
+  font-weight: 400;
+}
+
+/* =========================
+   BOTÕES
+========================= */
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 16px;
+  background: #111;
+  color: white;
+  font-weight: 700;
+}
+
+button:hover {
+  opacity: 0.88;
+}
+
+.ghost {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.35);
+  color: white;
+}
+
+/* =========================
+   CONTEÚDO
+========================= */
+
+main {
+  width: min(1180px, calc(100% - 24px));
+  margin: 0 auto;
+}
+
+/* =========================
+   HERO
+========================= */
+
+.hero {
+  margin: 18px 0;
+  padding: 28px 20px;
+  border-radius: 18px;
+  background: #111;
+  color: white;
+}
+
+.hero h1 {
+  margin: 6px 0 12px;
+  font-size: clamp(28px, 6vw, 48px);
+  line-height: 1.05;
+}
+
+.hero p {
+  max-width: 650px;
+  line-height: 1.5;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  opacity: .7;
+}
+
+/* =========================
+   PESQUISA E CATEGORIA
+========================= */
+
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.toolbar input,
+.toolbar select,
+.cart input,
+.panel input {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 12px;
+  background: white;
+  outline: none;
+}
+
+.toolbar input:focus,
+.toolbar select:focus,
+.cart input:focus,
+.panel input:focus {
+  border-color: #111;
+}
+
+/* =========================
+   PRODUTOS
+========================= */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-bottom: 30px;
+}
+
+/*
+   O cartão ocupa menos espaço
+   e a imagem fica compacta.
+*/
+
+.productCard {
+  background: white;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #e8e8e8;
+  min-width: 0;
+}
+
+/* Imagem do produto */
+
+.productCard img {
+  width: 100%;
+  height: 150px;
+  object-fit: contain;
+  display: block;
+  background: #f4f4f4;
+}
+
+/* Área de informação */
+
+.productCard .content,
+.productCard .info {
+  padding: 10px;
+}
+
+.productCard h3 {
+  margin: 0 0 5px;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.productCard p {
+  margin: 4px 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.productCard .price {
+  font-size: 16px;
+  font-weight: 800;
+  margin-top: 8px;
+}
+
+.productCard button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px;
+  font-size: 13px;
+}
+
+/* =========================
+   CARRINHO
+========================= */
+
+.cart {
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: min(420px, 94vw);
+  height: 100vh;
+  padding: 18px;
+  background: white;
+  box-shadow: -8px 0 30px rgba(0,0,0,.18);
+  z-index: 100;
+  overflow-y: auto;
+}
+
+.cartHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cartHead h2 {
+  margin: 0;
+}
+
+#closeCart,
+.close {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 24px;
+}
+
+#cartItems {
+  margin: 18px 0;
+}
+
+.total {
+  font-size: 19px;
+  font-weight: 800;
+  margin: 15px 0;
+}
+
+.cart input {
+  margin-bottom: 10px;
+}
+
+#orderBtn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* =========================
+   MODAL ADMIN
+========================= */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 200;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.panel {
+  width: min(420px, 100%);
+  background: white;
+  border-radius: 16px;
+  padding: 22px;
+  position: relative;
+}
+
+.panel h2 {
+  margin-top: 0;
+}
+
+.panel input {
+  margin-top: 10px;
+}
+
+.panel #login {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.panel .close {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  background: #eee;
+  color: #111;
+}
+
+#loginMsg {
+  margin-top: 12px;
+}
+
+/* =========================
+   RODAPÉ
+========================= */
+
+footer {
+  text-align: center;
+  padding: 30px 15px;
+  color: #777;
+  font-size: 13px;
+}
+
+/* =========================
+   TABLET
+========================= */
+
+@media (min-width: 650px) {
+
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .productCard img {
+    height: 190px;
+  }
+
+}
+
+/* =========================
+   COMPUTADOR
+========================= */
+
+@media (min-width: 1000px) {
+
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .productCard img {
+    height: 210px;
+  }
+
+  .hero {
+    padding: 45px;
+  }
+
+}
+
+/* =========================
+   CELULAR PEQUENO
+========================= */
+
+@media (max-width: 420px) {
+
+  main {
+    width: calc(100% - 16px);
+  }
+
+  .hero {
+    padding: 22px 16px;
+  }
+
+  .hero h1 {
+    font-size: 28px;
+  }
+
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .grid {
+    gap: 8px;
+  }
+
+  .productCard img {
+    height: 125px;
+  }
+
+  .productCard .content,
+  .productCard .info {
+    padding: 8px;
+  }
+
+  .productCard h3 {
+    font-size: 14px;
+  }
+
+  .productCard .price {
+    font-size: 15px;
+  }
+
+  .productCard button {
+    font-size: 12px;
+    padding: 8px;
+  }
+
+}
