@@ -9,6 +9,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const csrf = require("csurf");
 const path = require("path");
+const { v2: cloudinary } = require("cloudinary");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -46,6 +47,16 @@ const ALLOWED_SIZES = {
   pants: ["32", "34", "36", "38", "40", "42", "44"],
   shoe: ["38", "39", "40", "41", "42", "43", "44"]
 };
+
+// ======================================================
+// CLOUDINARY
+// ======================================================
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // ======================================================
 // DATABASE
@@ -88,7 +99,7 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 // ======================================================
-// SESSÃO — CORRIGIDA
+// SESSÃO
 // ======================================================
 
 app.use(
@@ -108,18 +119,12 @@ app.use(
     resave: false,
     saveUninitialized: false,
 
-    // Importante no Render
     proxy: true,
 
     cookie: {
       httpOnly: true,
-
-      // HTTPS no Render
       secure: isProduction,
-
-      // Lax evita problemas de sessão/redirecionamento
       sameSite: "lax",
-
       maxAge: 1000 * 60 * 60 * 8
     }
   })
@@ -152,7 +157,6 @@ const csrfProtection = csrf({
 });
 
 app.use((req, res, next) => {
-  // Pedidos públicos não usam CSRF
   if (req.path === "/api/orders") {
     return next();
   }
@@ -309,7 +313,6 @@ function requireAdmin(req, res, next) {
 // ======================================================
 
 async function initDatabase() {
-  // ADMINS
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admins (
       id SERIAL PRIMARY KEY,
@@ -319,7 +322,6 @@ async function initDatabase() {
     )
   `);
 
-  // PRODUCTS
   await pool.query(`
     CREATE TABLE IF NOT EXISTS products (
       id SERIAL PRIMARY KEY,
@@ -336,7 +338,6 @@ async function initDatabase() {
     )
   `);
 
-  // MIGRAÇÃO
   await pool.query(`
     ALTER TABLE products
     ADD COLUMN IF NOT EXISTS name TEXT
@@ -382,7 +383,6 @@ async function initDatabase() {
     ADD COLUMN IF NOT EXISTS sizes_json TEXT DEFAULT '[]'
   `);
 
-  // ORDERS
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id SERIAL PRIMARY KEY,
@@ -394,7 +394,6 @@ async function initDatabase() {
     )
   `);
 
-  // ADMIN
   if (ADMIN_EMAIL && ADMIN_PASSWORD) {
     const existing = await pool.query(
       `SELECT id FROM admins WHERE email = $1 LIMIT 1`,
@@ -439,7 +438,7 @@ app.get("/api/csrf", (req, res) => {
 });
 
 // ======================================================
-// LOGIN — CORRIGIDO
+// LOGIN
 // ======================================================
 
 app.post(
@@ -494,13 +493,6 @@ app.post(
             "Email ou senha incorretos."
         });
       }
-
-      // ==================================================
-      // IMPORTANTE:
-      // cria uma nova sessão depois do login e garante
-      // que ela seja gravada no PostgreSQL antes de
-      // responder ao navegador.
-      // ==================================================
 
       req.session.regenerate((regenerateError) => {
         if (regenerateError) {
@@ -650,6 +642,76 @@ app.get(
 );
 
 // ======================================================
+// UPLOAD DE IMAGEM — CLOUDINARY
+// ======================================================
+
+app.post(
+  "/api/upload-image",
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const image = String(
+        req.body.image || ""
+      );
+
+      if (!image) {
+        return res.status(400).json({
+          error:
+            "Nenhuma imagem foi enviada."
+        });
+      }
+
+      if (
+        !image.startsWith("data:image/")
+      ) {
+        return res.status(400).json({
+          error:
+            "Formato de imagem inválido."
+        });
+      }
+
+      const result =
+        await cloudinary.uploader.upload(
+          image,
+          {
+            folder:
+              "lumexa-store/products",
+
+            resource_type: "image",
+
+            transformation: [
+              {
+                width: 1000,
+                height: 1000,
+                crop: "limit",
+                quality: "auto",
+                fetch_format: "auto"
+              }
+            ]
+          }
+        );
+
+      return res.json({
+        ok: true,
+        url: result.secure_url,
+        publicId: result.public_id
+      });
+
+    } catch (error) {
+      console.error(
+        "ERRO AO ENVIAR IMAGEM PARA CLOUDINARY:",
+        error
+      );
+
+      return res.status(500).json({
+        error:
+          "Não foi possível enviar a imagem."
+      });
+    }
+  }
+);
+
+// ======================================================
 // CRIAR PRODUTO — ADMIN
 // ======================================================
 
@@ -707,7 +769,9 @@ app.post(
           product.image,
           product.available,
           product.sizeType,
-          JSON.stringify(product.sizes)
+          JSON.stringify(
+            product.sizes
+          )
         ]
       );
 
@@ -802,7 +866,9 @@ app.put(
           product.image,
           product.available,
           product.sizeType,
-          JSON.stringify(product.sizes),
+          JSON.stringify(
+            product.sizes
+          ),
           id
         ]
       );
@@ -1026,7 +1092,9 @@ app.post(
           );
 
           if (
-            !product.sizes.includes(size)
+            !product.sizes.includes(
+              size
+            )
           ) {
             return res.status(400).json({
               error:
@@ -1044,14 +1112,18 @@ app.post(
         finalItems.push({
           id: product.id,
           name: product.name,
-          price: Number(product.price),
+          price: Number(
+            product.price
+          ),
           quantity,
           size
         });
       }
 
       total =
-        Math.round(total * 100) / 100;
+        Math.round(
+          total * 100
+        ) / 100;
 
       await pool.query(
         `
@@ -1068,7 +1140,9 @@ app.post(
         [
           customerName,
           customerPhone,
-          JSON.stringify(finalItems),
+          JSON.stringify(
+            finalItems
+          ),
           total
         ]
       );
@@ -1103,7 +1177,9 @@ app.post(
 
         message +=
           ` — ${encodeURIComponent(
-            Number(item.price).toLocaleString(
+            Number(
+              item.price
+            ).toLocaleString(
               "pt-PT"
             )
           )} ${STORE_CURRENCY}%0A`;
@@ -1111,7 +1187,9 @@ app.post(
 
       message +=
         `%0ATotal: ${encodeURIComponent(
-          total.toLocaleString("pt-PT")
+          total.toLocaleString(
+            "pt-PT"
+          )
         )} ${STORE_CURRENCY}`;
 
       const whatsappUrl =
@@ -1179,7 +1257,8 @@ app.get(
             customerPhone:
               row.customer_phone,
             items,
-            total: Number(row.total),
+            total:
+              Number(row.total),
             createdAt:
               row.created_at
           };
@@ -1207,7 +1286,10 @@ app.get(
 
 app.use(
   express.static(
-    path.join(__dirname, "public")
+    path.join(
+      __dirname,
+      "public"
+    )
   )
 );
 
@@ -1215,22 +1297,26 @@ app.use(
 // FALLBACK
 // ======================================================
 
-app.use((req, res, next) => {
-  if (
-    req.method === "GET" &&
-    !req.path.startsWith("/api/")
-  ) {
-    return res.sendFile(
-      path.join(
-        __dirname,
-        "public",
-        "index.html"
+app.use(
+  (req, res, next) => {
+    if (
+      req.method === "GET" &&
+      !req.path.startsWith(
+        "/api/"
       )
-    );
-  }
+    ) {
+      return res.sendFile(
+        path.join(
+          __dirname,
+          "public",
+          "index.html"
+        )
+      );
+    }
 
-  next();
-});
+    next();
+  }
+);
 
 // ======================================================
 // ERROS
@@ -1238,10 +1324,14 @@ app.use((req, res, next) => {
 
 app.use(
   (err, req, res, next) => {
-    console.error("ERRO:", err);
+    console.error(
+      "ERRO:",
+      err
+    );
 
     if (
-      err.code === "EBADCSRFTOKEN"
+      err.code ===
+      "EBADCSRFTOKEN"
     ) {
       return res.status(403).json({
         error:
@@ -1264,11 +1354,14 @@ app.use(
 
 initDatabase()
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(
-        `Lumexa Store rodando na porta ${PORT}`
-      );
-    });
+    app.listen(
+      PORT,
+      () => {
+        console.log(
+          `Lumexa Store rodando na porta ${PORT}`
+        );
+      }
+    );
   })
   .catch((error) => {
     console.error(
