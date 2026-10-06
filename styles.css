@@ -413,3 +413,111 @@ footer {
   }
 
 }
+/* ================================
+   AJUSTE REAL DOS PRODUTOS LUMEXA
+================================ */
+
+.grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  align-items: start;
+}
+
+.card {
+  min-width: 0 !important;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* Área da imagem */
+.card .pic {
+  width: 100% !important;
+  height: 150px !important;
+  overflow: hidden;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+}
+
+/* Imagem */
+.card .pic img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  display: block;
+}
+
+/* Informações */
+.card .body {
+  padding: 9px !important;
+}
+
+.card h3 {
+  font-size: 14px !important;
+  margin: 5px 0 !important;
+}
+
+.card .body > div {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.card .price {
+  font-size: 14px !important;
+  font-weight: 700;
+  margin-top: 7px;
+}
+
+.card button {
+  width: 100%;
+  padding: 8px !important;
+  font-size: 12px;
+}
+
+/* Celular */
+@media (max-width: 600px) {
+
+  main {
+    width: calc(100% - 16px);
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .card .pic {
+    height: 135px !important;
+  }
+
+}
+
+/* Telas maiores */
+@media (min-width: 700px) {
+
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 15px !important;
+  }
+
+  .card .pic {
+    height: 190px !important;
+  }
+
+}
+
+@media (min-width: 1000px) {
+
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .card .pic {
+    height: 210px !important;
+  }
+
+}
