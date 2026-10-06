@@ -413,102 +413,112 @@ footer {
   }
 
 }
-/* ================================
-   AJUSTE REAL DOS PRODUTOS LUMEXA
-================================ */
+/* ===== CATÁLOGO COMPACTO LUMEXA ===== */
 
 .grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 10px !important;
-  align-items: start;
-}
-
-.card {
-  min-width: 0 !important;
-  overflow: hidden;
-  border-radius: 12px;
-}
-
-/* Área da imagem */
-.card .pic {
+  gap: 8px !important;
   width: 100% !important;
-  height: 150px !important;
-  overflow: hidden;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
 }
 
-/* Imagem */
-.card .pic img {
+.grid .card {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Caixa da fotografia */
+.grid .card .pic {
+  width: 100% !important;
+  height: 115px !important;
+  min-height: 115px !important;
+  max-height: 115px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #f5f5f5 !important;
+}
+
+/* Fotografia */
+.grid .card .pic img {
   width: 100% !important;
   height: 100% !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
   object-fit: contain !important;
-  display: block;
+  display: block !important;
 }
 
-/* Informações */
-.card .body {
-  padding: 9px !important;
+/* Texto */
+.grid .card .body {
+  padding: 7px !important;
 }
 
-.card h3 {
+.grid .card h3 {
   font-size: 14px !important;
+  line-height: 1.2 !important;
+  margin: 4px 0 !important;
+}
+
+.grid .card .badge {
+  font-size: 10px !important;
+}
+
+.grid .card .price {
+  font-size: 13px !important;
+  font-weight: 700 !important;
   margin: 5px 0 !important;
 }
 
-.card .body > div {
-  font-size: 12px;
-  line-height: 1.3;
+.grid .card .body > div {
+  font-size: 11px !important;
+  line-height: 1.25 !important;
 }
 
-.card .price {
-  font-size: 14px !important;
-  font-weight: 700;
-  margin-top: 7px;
+.grid .card button {
+  width: 100% !important;
+  padding: 7px 4px !important;
+  font-size: 11px !important;
 }
 
-.card button {
-  width: 100%;
-  padding: 8px !important;
-  font-size: 12px;
-}
+/* ===== CELULAR ===== */
 
-/* Celular */
 @media (max-width: 600px) {
 
   main {
-    width: calc(100% - 16px);
+    width: calc(100% - 14px) !important;
   }
 
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 8px !important;
+    gap: 7px !important;
   }
 
-  .card .pic {
-    height: 135px !important;
+  .grid .card .pic {
+    height: 110px !important;
+    min-height: 110px !important;
+    max-height: 110px !important;
   }
-
 }
 
-/* Telas maiores */
+/* ===== TABLET ===== */
+
 @media (min-width: 700px) {
 
   .grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 15px !important;
+    gap: 14px !important;
   }
 
-  .card .pic {
-    height: 190px !important;
+  .grid .card .pic {
+    height: 170px !important;
+    min-height: 170px !important;
+    max-height: 170px !important;
   }
-
 }
+
+/* ===== COMPUTADOR ===== */
 
 @media (min-width: 1000px) {
 
@@ -516,8 +526,9 @@ footer {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   }
 
-  .card .pic {
-    height: 210px !important;
+  .grid .card .pic {
+    height: 190px !important;
+    min-height: 190px !important;
+    max-height: 190px !important;
   }
-
 }
