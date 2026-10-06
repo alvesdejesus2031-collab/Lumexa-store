@@ -12,6 +12,7 @@ const SIZE_OPTIONS = {
 let csrfToken = "";
 let editingProductId = null;
 let selectedImageData = null;
+let productsCache = [];
 
 // ======================================================
 // SEGURANÇA / API
@@ -37,7 +38,8 @@ async function getCsrfToken() {
 }
 
 async function api(url, options = {}) {
-  const method = (options.method || "GET").toUpperCase();
+  const method =
+    (options.method || "GET").toUpperCase();
 
   const headers = {
     ...(options.headers || {})
@@ -58,7 +60,8 @@ async function api(url, options = {}) {
     credentials: "same-origin"
   });
 
-  const data = await response.json().catch(() => ({}));
+  const data =
+    await response.json().catch(() => ({}));
 
   if (response.status === 401) {
     window.location.href = "/";
@@ -93,11 +96,18 @@ function formatMoney(value) {
   return `${Number(value || 0).toLocaleString("pt-AO")} Kz`;
 }
 
-function showMessage(message, type = "success") {
-  let box = document.getElementById("adminMessage");
+function showMessage(
+  message,
+  type = "success"
+) {
+  let box =
+    document.getElementById(
+      "adminMessage"
+    );
 
   if (!box) {
     box = document.createElement("div");
+
     box.id = "adminMessage";
 
     box.style.position = "fixed";
@@ -108,7 +118,8 @@ function showMessage(message, type = "success") {
     box.style.borderRadius = "10px";
     box.style.fontWeight = "600";
     box.style.maxWidth = "350px";
-    box.style.boxShadow = "0 8px 25px rgba(0,0,0,.18)";
+    box.style.boxShadow =
+      "0 8px 25px rgba(0,0,0,.18)";
 
     document.body.appendChild(box);
   }
@@ -123,68 +134,130 @@ function showMessage(message, type = "success") {
     box.style.color = "#fff";
   }
 
-  clearTimeout(window.__adminMessageTimer);
+  clearTimeout(
+    window.__adminMessageTimer
+  );
 
-  window.__adminMessageTimer = setTimeout(() => {
-    box.remove();
-  }, 4000);
+  window.__adminMessageTimer =
+    setTimeout(() => {
+      if (box) {
+        box.remove();
+      }
+    }, 4000);
 }
 
 // ======================================================
 // TAMANHOS
 // ======================================================
 
-function renderSizeOptions(selectedSizes = []) {
-  const sizeType = document.getElementById("sizeType");
-  const sizesBox = document.getElementById("sizesBox");
-  const sizeOptions = document.getElementById("sizeOptions");
+function renderSizeOptions(
+  selectedSizes = []
+) {
+  const sizeType =
+    document.getElementById(
+      "sizeType"
+    );
 
-  if (!sizeType || !sizesBox || !sizeOptions) {
+  const sizesBox =
+    document.getElementById(
+      "sizesBox"
+    );
+
+  const sizeOptions =
+    document.getElementById(
+      "sizeOptions"
+    );
+
+  if (
+    !sizeType ||
+    !sizesBox ||
+    !sizeOptions
+  ) {
     return;
   }
 
   const type = sizeType.value;
-  const sizes = SIZE_OPTIONS[type] || [];
+
+  const sizes =
+    SIZE_OPTIONS[type] || [];
+
+  const selected =
+    Array.isArray(selectedSizes)
+      ? selectedSizes.map(String)
+      : [];
 
   sizeOptions.innerHTML = "";
 
   if (!sizes.length) {
-    sizesBox.classList.add("hidden");
+    sizesBox.classList.add(
+      "hidden"
+    );
     return;
   }
 
-  sizesBox.classList.remove("hidden");
+  sizesBox.classList.remove(
+    "hidden"
+  );
 
   sizes.forEach((size) => {
-    const label = document.createElement("label");
+    const label =
+      document.createElement(
+        "label"
+      );
 
-    label.className = "sizeOption";
+    label.className =
+      "sizeOption";
 
-    const checkbox = document.createElement("input");
+    const checkbox =
+      document.createElement(
+        "input"
+      );
 
-    checkbox.type = "checkbox";
-    checkbox.value = size;
-    checkbox.checked = selectedSizes.includes(size);
+    checkbox.type =
+      "checkbox";
 
-    label.appendChild(checkbox);
+    checkbox.value =
+      size;
 
-    const text = document.createElement("span");
+    checkbox.checked =
+      selected.includes(
+        String(size)
+      );
 
-    text.textContent = size;
+    const text =
+      document.createElement(
+        "span"
+      );
 
-    label.appendChild(text);
+    text.textContent =
+      size;
 
-    sizeOptions.appendChild(label);
+    label.appendChild(
+      checkbox
+    );
+
+    label.appendChild(
+      text
+    );
+
+    sizeOptions.appendChild(
+      label
+    );
   });
 }
 
 function getSelectedSizes() {
-  const checkboxes = document.querySelectorAll(
-    "#sizeOptions input[type='checkbox']:checked"
-  );
+  const checkboxes =
+    document.querySelectorAll(
+      "#sizeOptions input[type='checkbox']:checked"
+    );
 
-  return Array.from(checkboxes)
-    .map((checkbox) => checkbox.value);
+  return Array.from(
+    checkboxes
+  ).map(
+    (checkbox) =>
+      checkbox.value
+  );
 }
 
 // ======================================================
@@ -192,8 +265,15 @@ function getSelectedSizes() {
 // ======================================================
 
 function showImagePreview(image) {
-  const preview = document.getElementById("imagePreview");
-  const imageInput = document.getElementById("image");
+  const preview =
+    document.getElementById(
+      "imagePreview"
+    );
+
+  const imageInput =
+    document.getElementById(
+      "image"
+    );
 
   if (!preview) {
     return;
@@ -210,159 +290,293 @@ function showImagePreview(image) {
   }
 
   if (imageInput) {
-    imageInput.value = image;
+    imageInput.value =
+      image;
   }
 
-  const img = document.createElement("img");
+  const img =
+    document.createElement(
+      "img"
+    );
 
   img.src = image;
-  img.alt = "Pré-visualização do produto";
 
-  img.style.maxWidth = "250px";
-  img.style.maxHeight = "250px";
-  img.style.width = "auto";
-  img.style.height = "auto";
-  img.style.objectFit = "contain";
-  img.style.borderRadius = "12px";
+  img.alt =
+    "Pré-visualização do produto";
 
-  preview.appendChild(img);
+  img.style.maxWidth =
+    "250px";
+
+  img.style.maxHeight =
+    "250px";
+
+  img.style.width =
+    "auto";
+
+  img.style.height =
+    "auto";
+
+  img.style.objectFit =
+    "contain";
+
+  img.style.borderRadius =
+    "12px";
+
+  preview.appendChild(
+    img
+  );
 }
 
 // ======================================================
-// COMPRESSÃO DAS IMAGENS
+// COMPRESSÃO REAL DA IMAGEM
 // ======================================================
 
 function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    if (!file) {
-      reject(new Error("Nenhuma imagem selecionada."));
-      return;
-    }
-
-    if (!file.type.startsWith("image/")) {
-      reject(new Error("Selecione uma imagem válida."));
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const img = new Image();
-
-      img.onload = () => {
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 800;
-
-        let width = img.width;
-        let height = img.height;
-
-        const ratio = Math.min(
-          MAX_WIDTH / width,
-          MAX_HEIGHT / height,
-          1
+  return new Promise(
+    (resolve, reject) => {
+      if (!file) {
+        reject(
+          new Error(
+            "Nenhuma imagem selecionada."
+          )
         );
+        return;
+      }
 
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
+      if (
+        !file.type.startsWith(
+          "image/"
+        )
+      ) {
+        reject(
+          new Error(
+            "Selecione uma imagem válida."
+          )
+        );
+        return;
+      }
 
-        const canvas = document.createElement("canvas");
+      const reader =
+        new FileReader();
 
-        canvas.width = width;
-        canvas.height = height;
+      reader.onload = () => {
+        const img =
+          new Image();
 
-        const ctx = canvas.getContext("2d");
+        img.onload = () => {
+          // Tamanho máximo final
+          const MAX_WIDTH = 700;
+          const MAX_HEIGHT = 700;
 
-        if (!ctx) {
+          let width =
+            img.naturalWidth ||
+            img.width;
+
+          let height =
+            img.naturalHeight ||
+            img.height;
+
+          const ratio =
+            Math.min(
+              MAX_WIDTH / width,
+              MAX_HEIGHT / height,
+              1
+            );
+
+          width =
+            Math.max(
+              1,
+              Math.round(
+                width * ratio
+              )
+            );
+
+          height =
+            Math.max(
+              1,
+              Math.round(
+                height * ratio
+              )
+            );
+
+          const canvas =
+            document.createElement(
+              "canvas"
+            );
+
+          canvas.width =
+            width;
+
+          canvas.height =
+            height;
+
+          const ctx =
+            canvas.getContext(
+              "2d"
+            );
+
+          if (!ctx) {
+            reject(
+              new Error(
+                "Não foi possível processar a imagem."
+              )
+            );
+            return;
+          }
+
+          // Fundo branco para imagens com transparência
+          ctx.fillStyle =
+            "#ffffff";
+
+          ctx.fillRect(
+            0,
+            0,
+            width,
+            height
+          );
+
+          ctx.drawImage(
+            img,
+            0,
+            0,
+            width,
+            height
+          );
+
+          // Tentamos deixar a imagem pequena.
+          const qualities = [
+            0.65,
+            0.55,
+            0.45,
+            0.35,
+            0.30
+          ];
+
+          let compressed =
+            "";
+
+          let compressedBytes =
+            Infinity;
+
+          for (
+            const quality
+            of qualities
+          ) {
+            compressed =
+              canvas.toDataURL(
+                "image/jpeg",
+                quality
+              );
+
+            compressedBytes =
+              Math.floor(
+                (compressed.length -
+                  "data:image/jpeg;base64,"
+                    .length) *
+                  0.75
+              );
+
+            // Meta: aproximadamente 300 KB
+            if (
+              compressedBytes <=
+              300 * 1024
+            ) {
+              break;
+            }
+          }
+
+          const originalKB =
+            Math.round(
+              file.size / 1024
+            );
+
+          const compressedKB =
+            Math.round(
+              compressedBytes / 1024
+            );
+
+          console.log(
+            "Imagem original:",
+            originalKB,
+            "KB"
+          );
+
+          console.log(
+            "Imagem final:",
+            compressedKB,
+            "KB"
+          );
+
+          console.log(
+            "Dimensões finais:",
+            width,
+            "x",
+            height
+          );
+
+          resolve(
+            compressed
+          );
+        };
+
+        img.onerror = () => {
           reject(
             new Error(
               "Não foi possível processar a imagem."
             )
           );
+        };
 
-          return;
-        }
-
-        ctx.drawImage(
-          img,
-          0,
-          0,
-          width,
-          height
-        );
-
-        const compressed = canvas.toDataURL(
-          "image/jpeg",
-          0.65
-        );
-
-        const originalKB =
-          Math.round(file.size / 1024);
-
-        const compressedKB =
-          Math.round(
-            (compressed.length * 3) / 4 / 1024
-          );
-
-        console.log(
-          "Imagem original:",
-          originalKB,
-          "KB"
-        );
-
-        console.log(
-          "Imagem comprimida:",
-          compressedKB,
-          "KB"
-        );
-
-        resolve(compressed);
+        img.src =
+          reader.result;
       };
 
-      img.onerror = () => {
+      reader.onerror = () => {
         reject(
           new Error(
-            "Não foi possível processar a imagem."
+            "Não foi possível ler a imagem."
           )
         );
       };
 
-      img.src = reader.result;
-    };
-
-    reader.onerror = () => {
-      reject(
-        new Error(
-          "Não foi possível ler a imagem."
-        )
+      reader.readAsDataURL(
+        file
       );
-    };
-
-    reader.readAsDataURL(file);
-  });
+    }
+  );
 }
 
 // ======================================================
-// UPLOAD PARA CLOUDINARY
+// UPLOAD CLOUDINARY
 // ======================================================
 
-async function uploadImageToCloudinary(imageData) {
+async function uploadImageToCloudinary(
+  imageData
+) {
   if (!imageData) {
     return "";
   }
 
-  showMessage("A enviar imagem...", "success");
-
-  const result = await api(
-    "/api/upload-image",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        image: imageData
-      })
-    }
+  showMessage(
+    "A enviar imagem...",
+    "success"
   );
 
-  if (!result || !result.url) {
+  const result =
+    await api(
+      "/api/upload-image",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          image: imageData
+        })
+      }
+    );
+
+  if (
+    !result ||
+    !result.url
+  ) {
     throw new Error(
       "O Cloudinary não devolveu a imagem."
     );
@@ -382,7 +596,9 @@ async function uploadImageToCloudinary(imageData) {
 
 function setupImageInput() {
   const imageFile =
-    document.getElementById("imageFile");
+    document.getElementById(
+      "imageFile"
+    );
 
   if (!imageFile) {
     return;
@@ -391,7 +607,8 @@ function setupImageInput() {
   imageFile.addEventListener(
     "change",
     async function () {
-      const file = this.files?.[0];
+      const file =
+        this.files?.[0];
 
       if (!file) {
         return;
@@ -404,19 +621,28 @@ function setupImageInput() {
         );
 
         const compressed =
-          await compressImage(file);
+          await compressImage(
+            file
+          );
 
-        selectedImageData = compressed;
+        selectedImageData =
+          compressed;
 
-        showImagePreview(compressed);
+        showImagePreview(
+          compressed
+        );
 
         showMessage(
-          "Imagem preparada. Será enviada ao Cloudinary ao guardar o produto."
+          "Imagem comprimida e preparada."
         );
-      } catch (error) {
-        console.error(error);
 
-        selectedImageData = null;
+      } catch (error) {
+        console.error(
+          error
+        );
+
+        selectedImageData =
+          null;
 
         showMessage(
           error.message ||
@@ -434,7 +660,9 @@ function setupImageInput() {
 
 async function loadProducts() {
   const productsList =
-    document.getElementById("productsList");
+    document.getElementById(
+      "productsList"
+    );
 
   if (!productsList) {
     return;
@@ -444,14 +672,18 @@ async function loadProducts() {
     "<p>A carregar produtos...</p>";
 
   try {
-    const data = await api(
-      "/api/products"
-    );
+    const data =
+      await api(
+        "/api/products"
+      );
 
     const products =
       Array.isArray(data)
         ? data
         : data.products || [];
+
+    productsCache =
+      products;
 
     if (!products.length) {
       productsList.innerHTML =
@@ -460,16 +692,23 @@ async function loadProducts() {
       return;
     }
 
-    productsList.innerHTML = "";
+    productsList.innerHTML =
+      "";
 
-    products.forEach((product) => {
-      productsList.appendChild(
-        createProductElement(product)
-      );
-    });
+    products.forEach(
+      (product) => {
+        productsList.appendChild(
+          createProductElement(
+            product
+          )
+        );
+      }
+    );
 
   } catch (error) {
-    console.error(error);
+    console.error(
+      error
+    );
 
     productsList.innerHTML =
       "<p>Não foi possível carregar os produtos.</p>";
@@ -483,33 +722,30 @@ async function loadProducts() {
 }
 
 // ======================================================
-// CRIAR CARD DO PRODUTO
+// CARD DO PRODUTO
 // ======================================================
 
-function createProductElement(product) {
+function createProductElement(
+  product
+) {
   const card =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
-  card.className = "productAdminCard";
+  card.className =
+    "productAdminCard";
 
   const image =
     product.image ||
     "https://via.placeholder.com/300x300?text=Lumexa";
 
-  let sizes = [];
-
-  try {
-    if (Array.isArray(product.sizes)) {
-      sizes = product.sizes;
-    } else if (product.sizes_json) {
-      sizes =
-        typeof product.sizes_json === "string"
-          ? JSON.parse(product.sizes_json)
-          : product.sizes_json;
-    }
-  } catch {
-    sizes = [];
-  }
+  const sizes =
+    Array.isArray(
+      product.sizes
+    )
+      ? product.sizes
+      : [];
 
   card.innerHTML = `
     <div class="productAdminImage">
@@ -534,7 +770,14 @@ function createProductElement(product) {
 
       ${
         product.category
-          ? `<p>Categoria: ${escapeHtml(product.category)}</p>`
+          ? `
+            <p>
+              Categoria:
+              ${escapeHtml(
+                product.category
+              )}
+            </p>
+          `
           : ""
       }
 
@@ -542,17 +785,22 @@ function createProductElement(product) {
         product.description
           ? `
             <p>
-              ${escapeHtml(product.description)}
+              ${escapeHtml(
+                product.description
+              )}
             </p>
           `
           : ""
       }
 
       ${
-        product.size_type
+        product.sizeType
           ? `
             <p>
-              Tipo: ${escapeHtml(product.size_type)}
+              Tipo de tamanho:
+              ${escapeHtml(
+                product.sizeType
+              )}
             </p>
           `
           : ""
@@ -566,7 +814,9 @@ function createProductElement(product) {
               ${sizes
                 .map(
                   (size) =>
-                    `<span>${escapeHtml(size)}</span>`
+                    `<span>${escapeHtml(
+                      size
+                    )}</span>`
                 )
                 .join(", ")}
             </p>
@@ -600,7 +850,9 @@ function createProductElement(product) {
           class="toggleProductBtn"
           data-id="${product.id}"
           data-available="${
-            product.available ? "1" : "0"
+            product.available
+              ? "1"
+              : "0"
           }"
         >
           ${
@@ -627,15 +879,15 @@ function createProductElement(product) {
 }
 
 // ======================================================
-// OBTER PRODUTO PELO ID
+// OBTER PRODUTO DO CACHE
 // ======================================================
 
-async function getProduct(id) {
-  const data = await api(
-    `/api/products/${encodeURIComponent(id)}`
+function getProduct(id) {
+  return productsCache.find(
+    (product) =>
+      String(product.id) ===
+      String(id)
   );
-
-  return data?.product || data;
 }
 
 // ======================================================
@@ -645,7 +897,7 @@ async function getProduct(id) {
 async function editProduct(id) {
   try {
     const product =
-      await getProduct(id);
+      getProduct(id);
 
     if (!product) {
       throw new Error(
@@ -653,97 +905,73 @@ async function editProduct(id) {
       );
     }
 
-    editingProductId = id;
+    editingProductId =
+      product.id;
 
-    const name =
-      document.getElementById("name");
+    document.getElementById(
+      "name"
+    ).value =
+      product.name || "";
 
-    const category =
-      document.getElementById("category");
+    document.getElementById(
+      "category"
+    ).value =
+      product.category || "";
 
-    const type =
-      document.getElementById("type");
+    document.getElementById(
+      "type"
+    ).value =
+      product.type || "";
 
-    const price =
-      document.getElementById("price");
+    document.getElementById(
+      "price"
+    ).value =
+      product.price ?? "";
 
-    const description =
-      document.getElementById("description");
+    document.getElementById(
+      "description"
+    ).value =
+      product.description || "";
 
-    const image =
-      document.getElementById("image");
-
-    const available =
-      document.getElementById("available");
+    document.getElementById(
+      "available"
+    ).checked =
+      product.available !== false;
 
     const sizeType =
-      document.getElementById("sizeType");
+      document.getElementById(
+        "sizeType"
+      );
 
-    if (name) {
-      name.value =
-        product.name || "";
-    }
-
-    if (category) {
-      category.value =
-        product.category || "";
-    }
-
-    if (type) {
-      type.value =
-        product.type || "";
-    }
-
-    if (price) {
-      price.value =
-        product.price ?? "";
-    }
-
-    if (description) {
-      description.value =
-        product.description || "";
-    }
-
-    if (image) {
-      image.value =
-        product.image || "";
-    }
-
-    if (available) {
-      available.checked =
-        product.available !== false;
-    }
-
-    if (sizeType) {
-      sizeType.value =
-        product.size_type || "";
-    }
-
-    let selectedSizes = [];
-
-    try {
-      if (Array.isArray(product.sizes)) {
-        selectedSizes =
-          product.sizes;
-      } else if (product.sizes_json) {
-        selectedSizes =
-          typeof product.sizes_json === "string"
-            ? JSON.parse(product.sizes_json)
-            : product.sizes_json;
-      }
-    } catch {
-      selectedSizes = [];
-    }
+    // IMPORTANTE:
+    // O server.js devolve sizeType,
+    // e não size_type.
+    sizeType.value =
+      product.sizeType || "";
 
     renderSizeOptions(
-      selectedSizes
+      Array.isArray(
+        product.sizes
+      )
+        ? product.sizes
+        : []
     );
 
-    selectedImageData = null;
+    selectedImageData =
+      null;
 
     showImagePreview(
       product.image || ""
     );
+
+    const imageFile =
+      document.getElementById(
+        "imageFile"
+      );
+
+    if (imageFile) {
+      imageFile.value = "";
+    }
 
     const submitButton =
       document.querySelector(
@@ -755,15 +983,14 @@ async function editProduct(id) {
         "Guardar alterações";
     }
 
-    const cancelButton =
+    const formTitle =
       document.getElementById(
-        "cancelEditBtn"
+        "formTitle"
       );
 
-    if (cancelButton) {
-      cancelButton.classList.remove(
-        "hidden"
-      );
+    if (formTitle) {
+      formTitle.textContent =
+        "Editar produto";
     }
 
     const form =
@@ -778,8 +1005,14 @@ async function editProduct(id) {
       });
     }
 
+    showMessage(
+      "Produto carregado para edição."
+    );
+
   } catch (error) {
-    console.error(error);
+    console.error(
+      error
+    );
 
     showMessage(
       error.message ||
@@ -803,8 +1036,11 @@ function resetProductForm() {
     form.reset();
   }
 
-  editingProductId = null;
-  selectedImageData = null;
+  editingProductId =
+    null;
+
+  selectedImageData =
+    null;
 
   const imageFile =
     document.getElementById(
@@ -816,7 +1052,9 @@ function resetProductForm() {
   }
 
   const image =
-    document.getElementById("image");
+    document.getElementById(
+      "image"
+    );
 
   if (image) {
     image.value = "";
@@ -828,10 +1066,13 @@ function resetProductForm() {
     );
 
   if (preview) {
-    preview.innerHTML = "";
+    preview.innerHTML =
+      "";
   }
 
-  renderSizeOptions([]);
+  renderSizeOptions(
+    []
+  );
 
   const submitButton =
     document.querySelector(
@@ -843,15 +1084,14 @@ function resetProductForm() {
       "Guardar produto";
   }
 
-  const cancelButton =
+  const formTitle =
     document.getElementById(
-      "cancelEditBtn"
+      "formTitle"
     );
 
-  if (cancelButton) {
-    cancelButton.classList.add(
-      "hidden"
-    );
+  if (formTitle) {
+    formTitle.textContent =
+      "Adicionar produto";
   }
 }
 
@@ -859,20 +1099,30 @@ function resetProductForm() {
 // GUARDAR PRODUTO
 // ======================================================
 
-async function saveProduct(event) {
+async function saveProduct(
+  event
+) {
   event.preventDefault();
 
   const name =
-    document.getElementById("name");
+    document.getElementById(
+      "name"
+    );
 
   const category =
-    document.getElementById("category");
+    document.getElementById(
+      "category"
+    );
 
   const type =
-    document.getElementById("type");
+    document.getElementById(
+      "type"
+    );
 
   const price =
-    document.getElementById("price");
+    document.getElementById(
+      "price"
+    );
 
   const description =
     document.getElementById(
@@ -880,7 +1130,9 @@ async function saveProduct(event) {
     );
 
   const image =
-    document.getElementById("image");
+    document.getElementById(
+      "image"
+    );
 
   const available =
     document.getElementById(
@@ -917,21 +1169,12 @@ async function saveProduct(event) {
     let imageUrl =
       image?.value.trim() || "";
 
-    // ----------------------------------------------
-    // SE EXISTE NOVA IMAGEM
-    // ENVIA PARA CLOUDINARY
-    // ----------------------------------------------
-
     if (selectedImageData) {
       imageUrl =
         await uploadImageToCloudinary(
           selectedImageData
         );
     }
-
-    // ----------------------------------------------
-    // TAMANHOS
-    // ----------------------------------------------
 
     const selectedSizes =
       getSelectedSizes();
@@ -947,7 +1190,9 @@ async function saveProduct(event) {
         type?.value.trim() || "",
 
       price:
-        Number(price.value),
+        Number(
+          price.value
+        ),
 
       description:
         description?.value.trim() || "",
@@ -960,7 +1205,10 @@ async function saveProduct(event) {
           ? available.checked
           : true,
 
-      size_type:
+      // IMPORTANTE:
+      // O server.js espera sizeType
+      // e não size_type.
+      sizeType:
         sizeType?.value || "",
 
       sizes:
@@ -969,20 +1217,21 @@ async function saveProduct(event) {
 
     let result;
 
-    // ----------------------------------------------
-    // EDITAR
-    // ----------------------------------------------
-
     if (editingProductId) {
-      result = await api(
-        `/api/products/${encodeURIComponent(
-          editingProductId
-        )}`,
-        {
-          method: "PUT",
-          body: JSON.stringify(payload)
-        }
-      );
+
+      result =
+        await api(
+          `/api/products/${encodeURIComponent(
+            editingProductId
+          )}`,
+          {
+            method: "PUT",
+            body:
+              JSON.stringify(
+                payload
+              )
+          }
+        );
 
       showMessage(
         "Produto atualizado com sucesso."
@@ -990,17 +1239,17 @@ async function saveProduct(event) {
 
     } else {
 
-      // --------------------------------------------
-      // CRIAR
-      // --------------------------------------------
-
-      result = await api(
-        "/api/products",
-        {
-          method: "POST",
-          body: JSON.stringify(payload)
-        }
-      );
+      result =
+        await api(
+          "/api/products",
+          {
+            method: "POST",
+            body:
+              JSON.stringify(
+                payload
+              )
+          }
+        );
 
       showMessage(
         "Produto criado com sucesso."
@@ -1034,7 +1283,9 @@ async function saveProduct(event) {
 // ELIMINAR PRODUTO
 // ======================================================
 
-async function deleteProduct(id) {
+async function deleteProduct(
+  id
+) {
   const confirmed =
     window.confirm(
       "Tem certeza que deseja eliminar este produto?"
@@ -1046,7 +1297,9 @@ async function deleteProduct(id) {
 
   try {
     await api(
-      `/api/products/${encodeURIComponent(id)}`,
+      `/api/products/${encodeURIComponent(
+        id
+      )}`,
       {
         method: "DELETE"
       }
@@ -1057,8 +1310,9 @@ async function deleteProduct(id) {
     );
 
     if (
-      String(editingProductId) ===
-      String(id)
+      String(
+        editingProductId
+      ) === String(id)
     ) {
       resetProductForm();
     }
@@ -1066,7 +1320,9 @@ async function deleteProduct(id) {
     await loadProducts();
 
   } catch (error) {
-    console.error(error);
+    console.error(
+      error
+    );
 
     showMessage(
       error.message ||
@@ -1086,7 +1342,7 @@ async function toggleProduct(
 ) {
   try {
     const product =
-      await getProduct(id);
+      getProduct(id);
 
     if (!product) {
       throw new Error(
@@ -1108,7 +1364,9 @@ async function toggleProduct(
         product.type || "",
 
       price:
-        Number(product.price || 0),
+        Number(
+          product.price || 0
+        ),
 
       description:
         product.description || "",
@@ -1119,30 +1377,28 @@ async function toggleProduct(
       available:
         newAvailable,
 
-      size_type:
-        product.size_type || "",
+      // IMPORTANTE
+      sizeType:
+        product.sizeType || "",
 
       sizes:
-        Array.isArray(product.sizes)
+        Array.isArray(
+          product.sizes
+        )
           ? product.sizes
-          : (() => {
-              try {
-                return product.sizes_json
-                  ? JSON.parse(
-                      product.sizes_json
-                    )
-                  : [];
-              } catch {
-                return [];
-              }
-            })()
+          : []
     };
 
     await api(
-      `/api/products/${encodeURIComponent(id)}`,
+      `/api/products/${encodeURIComponent(
+        id
+      )}`,
       {
         method: "PUT",
-        body: JSON.stringify(payload)
+        body:
+          JSON.stringify(
+            payload
+          )
       }
     );
 
@@ -1155,7 +1411,9 @@ async function toggleProduct(
     await loadProducts();
 
   } catch (error) {
-    console.error(error);
+    console.error(
+      error
+    );
 
     showMessage(
       error.message ||
@@ -1171,11 +1429,13 @@ async function toggleProduct(
 
 async function logoutAdmin() {
   try {
+    // O server.js usa /api/logout
     await api(
-      "/api/admin/logout",
+      "/api/logout",
       {
         method: "POST",
-        body: JSON.stringify({})
+        body:
+          JSON.stringify({})
       }
     );
 
@@ -1186,7 +1446,8 @@ async function logoutAdmin() {
     );
   }
 
-  window.location.href = "/";
+  window.location.href =
+    "/";
 }
 
 // ======================================================
@@ -1194,10 +1455,6 @@ async function logoutAdmin() {
 // ======================================================
 
 function setupEvents() {
-
-  // ----------------------------------------------
-  // FORMULÁRIO
-  // ----------------------------------------------
 
   const form =
     document.getElementById(
@@ -1211,10 +1468,6 @@ function setupEvents() {
     );
   }
 
-  // ----------------------------------------------
-  // TAMANHOS
-  // ----------------------------------------------
-
   const sizeType =
     document.getElementById(
       "sizeType"
@@ -1224,36 +1477,26 @@ function setupEvents() {
     sizeType.addEventListener(
       "change",
       () => {
-        renderSizeOptions([]);
+        renderSizeOptions(
+          []
+        );
       }
     );
   }
 
-  // ----------------------------------------------
-  // IMAGEM
-  // ----------------------------------------------
-
   setupImageInput();
 
-  // ----------------------------------------------
-  // CANCELAR EDIÇÃO
-  // ----------------------------------------------
-
-  const cancelEdit =
+  const clearButton =
     document.getElementById(
-      "cancelEditBtn"
+      "clearBtn"
     );
 
-  if (cancelEdit) {
-    cancelEdit.addEventListener(
+  if (clearButton) {
+    clearButton.addEventListener(
       "click",
       resetProductForm
     );
   }
-
-  // ----------------------------------------------
-  // LOGOUT
-  // ----------------------------------------------
 
   const logoutButton =
     document.getElementById(
@@ -1266,10 +1509,6 @@ function setupEvents() {
       logoutAdmin
     );
   }
-
-  // ----------------------------------------------
-  // PRODUTOS
-  // ----------------------------------------------
 
   document.addEventListener(
     "click",
@@ -1335,7 +1574,9 @@ async function initAdmin() {
 
     setupEvents();
 
-    renderSizeOptions([]);
+    renderSizeOptions(
+      []
+    );
 
     await loadProducts();
 
