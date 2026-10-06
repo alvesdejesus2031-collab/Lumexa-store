@@ -1,6 +1,5 @@
 // ======================================================
 // LUMEXA STORE — ADMIN.JS
-// Compatível com o admin.html e server.js atuais
 // ======================================================
 
 const SIZE_OPTIONS = {
@@ -32,14 +31,11 @@ async function getCsrfToken() {
   }
 
   csrfToken = data.csrfToken;
-
   return csrfToken;
 }
 
 async function api(url, options = {}) {
-  const method = (
-    options.method || "GET"
-  ).toUpperCase();
+  const method = (options.method || "GET").toUpperCase();
 
   const headers = {
     ...(options.headers || {})
@@ -57,9 +53,7 @@ async function api(url, options = {}) {
     credentials: "same-origin"
   });
 
-  const data = await response
-    .json()
-    .catch(() => ({}));
+  const data = await response.json().catch(() => ({}));
 
   if (response.status === 401) {
     window.location.href = "/";
@@ -78,7 +72,7 @@ async function api(url, options = {}) {
 }
 
 // ======================================================
-// FUNÇÕES AUXILIARES
+// AUXILIARES
 // ======================================================
 
 function escapeHtml(value) {
@@ -99,27 +93,16 @@ function formatMoney(value) {
 // ======================================================
 
 function renderSizeOptions(selectedSizes = []) {
-  const sizeType =
-    document.getElementById("sizeType");
+  const sizeType = document.getElementById("sizeType");
+  const sizesBox = document.getElementById("sizesBox");
+  const sizeOptions = document.getElementById("sizeOptions");
 
-  const sizesBox =
-    document.getElementById("sizesBox");
-
-  const sizeOptions =
-    document.getElementById("sizeOptions");
-
-  if (
-    !sizeType ||
-    !sizesBox ||
-    !sizeOptions
-  ) {
+  if (!sizeType || !sizesBox || !sizeOptions) {
     return;
   }
 
   const type = sizeType.value;
-
-  const sizes =
-    SIZE_OPTIONS[type] || [];
+  const sizes = SIZE_OPTIONS[type] || [];
 
   sizeOptions.innerHTML = "";
 
@@ -131,38 +114,28 @@ function renderSizeOptions(selectedSizes = []) {
   sizesBox.classList.remove("hidden");
 
   sizes.forEach((size) => {
-    const label =
-      document.createElement("label");
-
+    const label = document.createElement("label");
     label.className = "sizeOption";
 
-    const checkbox =
-      document.createElement("input");
-
+    const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.value = size;
-
-    checkbox.checked =
-      selectedSizes.includes(size);
+    checkbox.checked = selectedSizes.includes(size);
 
     label.appendChild(checkbox);
 
-    const text =
-      document.createElement("span");
-
+    const text = document.createElement("span");
     text.textContent = size;
 
     label.appendChild(text);
-
     sizeOptions.appendChild(label);
   });
 }
 
 function getSelectedSizes() {
-  const checkboxes =
-    document.querySelectorAll(
-      "#sizeOptions input[type='checkbox']:checked"
-    );
+  const checkboxes = document.querySelectorAll(
+    "#sizeOptions input[type='checkbox']:checked"
+  );
 
   return Array.from(checkboxes)
     .map((checkbox) => checkbox.value);
@@ -173,11 +146,8 @@ function getSelectedSizes() {
 // ======================================================
 
 function showImagePreview(image) {
-  const preview =
-    document.getElementById("imagePreview");
-
-  const imageInput =
-    document.getElementById("image");
+  const preview = document.getElementById("imagePreview");
+  const imageInput = document.getElementById("image");
 
   if (!preview) {
     return;
@@ -197,8 +167,7 @@ function showImagePreview(image) {
     imageInput.value = image;
   }
 
-  const img =
-    document.createElement("img");
+  const img = document.createElement("img");
 
   img.src = image;
   img.alt = "Pré-visualização do produto";
@@ -210,46 +179,61 @@ function showImagePreview(image) {
   preview.appendChild(img);
 }
 
+
+/*
+========================================================
+COMPRESSÃO DAS IMAGENS
+========================================================
+
+- Máximo de 1000px
+- WebP quando disponível
+- Qualidade 72%
+- Compressão adicional se ficar pesada
+*/
+
 function compressImage(file) {
   return new Promise((resolve, reject) => {
-    const reader =
-      new FileReader();
+
+    const reader = new FileReader();
 
     reader.onload = () => {
-      const img =
-        new Image();
+
+      const img = new Image();
 
       img.onload = () => {
-        const maxSize = 1200;
+
+        const maxSize = 1000;
 
         let width = img.width;
         let height = img.height;
 
-        if (
-          width > maxSize ||
-          height > maxSize
-        ) {
-          const ratio =
-            Math.min(
-              maxSize / width,
-              maxSize / height
-            );
+        // Reduz imagens muito grandes
+        if (width > maxSize || height > maxSize) {
 
-          width =
-            Math.round(width * ratio);
+          const ratio = Math.min(
+            maxSize / width,
+            maxSize / height
+          );
 
-          height =
-            Math.round(height * ratio);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
         }
 
-        const canvas =
-          document.createElement("canvas");
+        const canvas = document.createElement("canvas");
 
         canvas.width = width;
         canvas.height = height;
 
-        const context =
-          canvas.getContext("2d");
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          reject(
+            new Error(
+              "Não foi possível processar a imagem."
+            )
+          );
+          return;
+        }
 
         context.drawImage(
           img,
@@ -259,11 +243,62 @@ function compressImage(file) {
           height
         );
 
-        const result =
-          canvas.toDataURL(
+        // Tenta WebP primeiro
+        let result = canvas.toDataURL(
+          "image/webp",
+          0.72
+        );
+
+        // Se não suportar WebP, usa JPEG
+        if (!result.startsWith("data:image/webp")) {
+
+          result = canvas.toDataURL(
             "image/jpeg",
-            0.82
+            0.72
           );
+        }
+
+        // Se estiver muito grande
+        if (result.length > 450000) {
+
+          const format =
+            result.startsWith("data:image/webp")
+              ? "image/webp"
+              : "image/jpeg";
+
+          result = canvas.toDataURL(
+            format,
+            0.58
+          );
+        }
+
+        // Última redução
+        if (result.length > 350000) {
+
+          const format =
+            result.startsWith("data:image/webp")
+              ? "image/webp"
+              : "image/jpeg";
+
+          result = canvas.toDataURL(
+            format,
+            0.45
+          );
+        }
+
+        console.log(
+          "Imagem original:",
+          Math.round(file.size / 1024),
+          "KB"
+        );
+
+        console.log(
+          "Imagem comprimida:",
+          Math.round(
+            (result.length * 0.75) / 1024
+          ),
+          "KB"
+        );
 
         resolve(result);
       };
@@ -292,26 +327,31 @@ function compressImage(file) {
 }
 
 async function handleImageChange(event) {
-  const file =
-    event.target.files?.[0];
+
+  const file = event.target.files?.[0];
 
   if (!file) {
     return;
   }
 
   if (!file.type.startsWith("image/")) {
-    alert("Selecione uma imagem válida.");
+
+    alert(
+      "Selecione uma imagem válida."
+    );
+
     event.target.value = "";
     return;
   }
 
   try {
-    const image =
-      await compressImage(file);
+
+    const image = await compressImage(file);
 
     showImagePreview(image);
 
   } catch (error) {
+
     console.error(error);
 
     alert(
@@ -325,8 +365,8 @@ async function handleImageChange(event) {
 // ======================================================
 
 function clearForm() {
-  const form =
-    document.getElementById("productForm");
+
+  const form = document.getElementById("productForm");
 
   if (form) {
     form.reset();
@@ -388,70 +428,45 @@ function clearForm() {
 // ======================================================
 
 async function saveProduct(event) {
+
   event.preventDefault();
 
   const name =
-    document.getElementById("name")
-      ?.value
-      .trim();
+    document.getElementById("name")?.value.trim();
 
   const category =
-    document.getElementById("category")
-      ?.value
-      .trim();
+    document.getElementById("category")?.value.trim();
 
   const type =
-    document.getElementById("type")
-      ?.value
-      .trim() || "";
+    document.getElementById("type")?.value.trim() || "";
 
   const priceValue =
-    document.getElementById("price")
-      ?.value;
+    document.getElementById("price")?.value;
 
   const description =
-    document.getElementById("description")
-      ?.value
-      .trim() || "";
+    document.getElementById("description")?.value.trim() || "";
 
   const image =
-    document.getElementById("image")
-      ?.value || "";
+    document.getElementById("image")?.value || "";
 
   const available =
-    document.getElementById("available")
-      ?.checked ?? true;
+    document.getElementById("available")?.checked ?? true;
 
   const sizeType =
-    document.getElementById("sizeType")
-      ?.value || "";
+    document.getElementById("sizeType")?.value || "";
 
   const sizes =
     getSelectedSizes();
 
-  // ====================================================
-  // VALIDAÇÃO
-  // ====================================================
-
   if (!name) {
-    alert(
-      "Digite o nome do produto."
-    );
-
+    alert("Digite o nome do produto.");
     document.getElementById("name")?.focus();
-
     return;
   }
 
   if (!category) {
-    alert(
-      "Digite a categoria do produto."
-    );
-
-    document
-      .getElementById("category")
-      ?.focus();
-
+    alert("Digite a categoria do produto.");
+    document.getElementById("category")?.focus();
     return;
   }
 
@@ -462,25 +477,13 @@ async function saveProduct(event) {
     !Number.isFinite(Number(priceValue)) ||
     Number(priceValue) < 0
   ) {
-    alert(
-      "Digite um preço válido."
-    );
-
-    document
-      .getElementById("price")
-      ?.focus();
-
+    alert("Digite um preço válido.");
+    document.getElementById("price")?.focus();
     return;
   }
 
-  if (
-    sizeType &&
-    sizes.length === 0
-  ) {
-    alert(
-      "Selecione pelo menos um tamanho."
-    );
-
+  if (sizeType && sizes.length === 0) {
+    alert("Selecione pelo menos um tamanho.");
     return;
   }
 
@@ -497,14 +500,15 @@ async function saveProduct(event) {
   };
 
   try {
+
     const id =
       editingProductId ||
-      document.getElementById("productId")
-        ?.value;
+      document.getElementById("productId")?.value;
 
     let result;
 
     if (id) {
+
       result = await api(
         `/api/products/${id}`,
         {
@@ -512,7 +516,9 @@ async function saveProduct(event) {
           body: JSON.stringify(payload)
         }
       );
+
     } else {
+
       result = await api(
         "/api/products",
         {
@@ -538,6 +544,7 @@ async function saveProduct(event) {
     await loadProducts();
 
   } catch (error) {
+
     console.error(
       "Erro ao guardar produto:",
       error
@@ -555,6 +562,7 @@ async function saveProduct(event) {
 // ======================================================
 
 async function loadProducts() {
+
   const container =
     document.getElementById("productsList");
 
@@ -563,6 +571,7 @@ async function loadProducts() {
   }
 
   try {
+
     const data =
       await api("/api/products");
 
@@ -573,6 +582,7 @@ async function loadProducts() {
     }
 
     if (data.length === 0) {
+
       container.innerHTML = `
         <p class="muted">
           Ainda não existem produtos.
@@ -584,6 +594,7 @@ async function loadProducts() {
 
     container.innerHTML =
       data.map((product) => {
+
         const sizes =
           Array.isArray(product.sizes)
             ? product.sizes
@@ -639,9 +650,7 @@ async function loadProducts() {
                 product.description
                   ? `
                     <p>
-                      ${escapeHtml(
-                        product.description
-                      )}
+                      ${escapeHtml(product.description)}
                     </p>
                   `
                   : ""
@@ -699,9 +708,11 @@ async function loadProducts() {
 
           </article>
         `;
+
       }).join("");
 
   } catch (error) {
+
     console.error(
       "Erro ao carregar produtos:",
       error
@@ -720,7 +731,9 @@ async function loadProducts() {
 // ======================================================
 
 async function editProduct(id) {
+
   try {
+
     const data =
       await api("/api/products");
 
@@ -737,6 +750,7 @@ async function editProduct(id) {
       );
 
     if (!product) {
+
       alert(
         "Produto não encontrado."
       );
@@ -813,6 +827,7 @@ async function editProduct(id) {
     });
 
   } catch (error) {
+
     console.error(
       "Erro ao editar:",
       error
@@ -830,6 +845,7 @@ async function editProduct(id) {
 // ======================================================
 
 async function deleteProduct(id) {
+
   const confirmed =
     window.confirm(
       "Tem certeza que deseja eliminar este produto?"
@@ -840,6 +856,7 @@ async function deleteProduct(id) {
   }
 
   try {
+
     await api(
       `/api/products/${id}`,
       {
@@ -855,6 +872,7 @@ async function deleteProduct(id) {
     await loadProducts();
 
   } catch (error) {
+
     console.error(
       "Erro ao eliminar:",
       error
@@ -872,6 +890,7 @@ async function deleteProduct(id) {
 // ======================================================
 
 async function loadOrders() {
+
   const container =
     document.getElementById("ordersList");
 
@@ -880,6 +899,7 @@ async function loadOrders() {
   }
 
   try {
+
     const data =
       await api("/api/orders");
 
@@ -890,6 +910,7 @@ async function loadOrders() {
     }
 
     if (data.length === 0) {
+
       container.innerHTML = `
         <p class="muted">
           Ainda não existem pedidos.
@@ -926,15 +947,14 @@ async function loadOrders() {
                 ${escapeHtml(text)}
               </li>
             `;
+
           }).join("");
 
         const date =
           order.createdAt
             ? new Date(
                 order.createdAt
-              ).toLocaleString(
-                "pt-PT"
-              )
+              ).toLocaleString("pt-PT")
             : "";
 
         return `
@@ -982,9 +1002,11 @@ async function loadOrders() {
 
           </article>
         `;
+
       }).join("");
 
   } catch (error) {
+
     console.error(
       "Erro ao carregar pedidos:",
       error
@@ -1003,7 +1025,9 @@ async function loadOrders() {
 // ======================================================
 
 async function logout() {
+
   try {
+
     await api(
       "/api/logout",
       {
@@ -1012,12 +1036,14 @@ async function logout() {
     );
 
   } catch (error) {
+
     console.error(
       "Erro ao sair:",
       error
     );
 
   } finally {
+
     window.location.href = "/";
   }
 }
@@ -1029,9 +1055,7 @@ async function logout() {
 function setupEvents() {
 
   const productForm =
-    document.getElementById(
-      "productForm"
-    );
+    document.getElementById("productForm");
 
   if (productForm) {
     productForm.addEventListener(
@@ -1040,13 +1064,11 @@ function setupEvents() {
     );
   }
 
-
   const sizeType =
-    document.getElementById(
-      "sizeType"
-    );
+    document.getElementById("sizeType");
 
   if (sizeType) {
+
     sizeType.addEventListener(
       "change",
       () => {
@@ -1055,50 +1077,41 @@ function setupEvents() {
     );
   }
 
-
   const imageFile =
-    document.getElementById(
-      "imageFile"
-    );
+    document.getElementById("imageFile");
 
   if (imageFile) {
+
     imageFile.addEventListener(
       "change",
       handleImageChange
     );
   }
 
-
   const clearBtn =
-    document.getElementById(
-      "clearBtn"
-    );
+    document.getElementById("clearBtn");
 
   if (clearBtn) {
+
     clearBtn.addEventListener(
       "click",
       clearForm
     );
   }
 
-
   const logoutBtn =
-    document.getElementById(
-      "logoutBtn"
-    );
+    document.getElementById("logoutBtn");
 
   if (logoutBtn) {
+
     logoutBtn.addEventListener(
       "click",
       logout
     );
   }
 
-
   const productsList =
-    document.getElementById(
-      "productsList"
-    );
+    document.getElementById("productsList");
 
   if (productsList) {
 
@@ -1112,6 +1125,7 @@ function setupEvents() {
           );
 
         if (editButton) {
+
           const id =
             editButton.dataset.id;
 
@@ -1120,13 +1134,13 @@ function setupEvents() {
           return;
         }
 
-
         const deleteButton =
           event.target.closest(
             ".deleteProductBtn"
           );
 
         if (deleteButton) {
+
           const id =
             deleteButton.dataset.id;
 
@@ -1143,35 +1157,26 @@ function setupEvents() {
 // ======================================================
 
 async function init() {
+
   try {
 
-    // Primeiro obtemos o CSRF
     await getCsrfToken();
 
-
-    // Verificamos se o administrador está autenticado
     const me =
       await api("/api/me");
 
     if (!me || !me.authenticated) {
+
       window.location.href = "/";
       return;
     }
 
-
-    // Configura eventos
     setupEvents();
 
-
-    // Estado inicial dos tamanhos
     renderSizeOptions([]);
 
-
-    // Carrega produtos
     await loadProducts();
 
-
-    // Carrega pedidos
     await loadOrders();
 
   } catch (error) {
@@ -1188,9 +1193,10 @@ async function init() {
   }
 }
 
-
 // ======================================================
 // INICIAR
 // ======================================================
 
 init();
+
+
