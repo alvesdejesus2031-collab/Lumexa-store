@@ -51,12 +51,12 @@ const ALLOWED_SIZES = {
 // ======================================================
 // CLOUDINARY
 // ======================================================
+// Usa automaticamente a variável:
+// CLOUDINARY_URL=cloudinary://API_KEY:API_SECRET@p3fafzni
+//
+// NÃO coloque API Key ou API Secret diretamente neste arquivo.
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
+cloudinary.config();
 
 // ======================================================
 // DATABASE
@@ -95,8 +95,9 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+// Aumentado para permitir imagens comprimidas em Base64.
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // ======================================================
 // SESSÃO
