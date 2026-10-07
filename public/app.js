@@ -1169,19 +1169,19 @@ orderButton.addEventListener(
                   phone,
 
                 items:
-                  cart.map(
-                    item => ({
-                      id:
-                        item.id,
+  cart.map(
+    item => ({
+      id:
+        item.id,
 
-                      qty:
-                        item.qty,
+      quantity:
+        item.qty,
 
-                      size:
-                        item.size ||
-                        ""
-                    })
-                  )
+      size:
+        item.size ||
+        ""
+    })
+  )
               })
           }
         );
