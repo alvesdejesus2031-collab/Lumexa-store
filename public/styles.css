@@ -95,7 +95,7 @@ footer{text-align:center;padding:30px;color:var(--muted);border-top:1px solid va
 }
 
 /* ===== ECRÃ DE BOAS-VINDAS (enquanto os produtos carregam) ===== */
-#welcome{position:fixed;inset:0;z-index:50;background:var(--ivory);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .5s ease,visibility .5s ease}
+#welcome{position:fixed;inset:0;z-index:50;background:var(--ivory);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .5s ease,visibility .5s ease;animation:autohide .5s ease 10s forwards}
 #welcome.done{opacity:0;visibility:hidden}
 #welcome img{height:102px;width:auto}
 #welcome p{margin:0;font-family:var(--serif);font-size:20px;color:var(--ink)}
@@ -103,3 +103,5 @@ footer{text-align:center;padding:30px;color:var(--muted);border-top:1px solid va
 #welcome .bar::after{content:"";position:absolute;inset:0;width:40%;background:var(--gold);animation:slide 1.2s ease-in-out infinite}
 @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
 @media(prefers-reduced-motion:reduce){#welcome .bar::after{animation:none;width:100%}}
+
+@keyframes autohide{to{opacity:0;visibility:hidden;pointer-events:none}}
