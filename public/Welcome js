@@ -1,0 +1,20 @@
+(function () {
+  var welcome = document.getElementById("welcome");
+  var list = document.getElementById("products");
+
+  function hide() {
+    if (!welcome) return;
+    welcome.classList.add("done");
+    var el = welcome;
+    welcome = null;
+    setTimeout(function () { el.remove(); }, 600);
+  }
+
+  if (list) {
+    new MutationObserver(function (changes, observer) {
+      if (list.children.length) { observer.disconnect(); hide(); }
+    }).observe(list, { childList: true });
+  }
+
+  setTimeout(hide, 10000);
+})();
