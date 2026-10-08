@@ -31,7 +31,7 @@ header{height:88px;display:flex;align-items:center;justify-content:space-between
 
 /* ===== APRESENTAÇÃO ===== */
 .hero{margin:28px 6%;border-radius:14px;padding:70px 7%;background:var(--ink);color:var(--ivory)}
-.hero h1{font-size:clamp(36px,6.5vw,68px);font-weight:400;line-height:1.08;letter-spacing:-.01em;max-width:800px;margin:0 0 18px}
+.hero h1{font-size:clamp(32px,6vw,64px);font-weight:400;line-height:1.08;letter-spacing:-.01em;max-width:800px;margin:0 0 18px}
 .hero p{max-width:560px;color:#D9D4C7;font-size:17px;margin:0 0 28px}
 .hero button{background:var(--gold);color:var(--ink);font-weight:700}
 .hero button:hover{background:#C29E4B}
@@ -93,3 +93,13 @@ footer{text-align:center;padding:30px;color:var(--muted);border-top:1px solid va
   .hero{margin:14px;padding:45px 25px}
   .grid{padding-left:4%;padding-right:4%;grid-template-columns:1fr}
 }
+
+/* ===== ECRÃ DE BOAS-VINDAS (enquanto os produtos carregam) ===== */
+#welcome{position:fixed;inset:0;z-index:50;background:var(--ivory);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .5s ease,visibility .5s ease}
+#welcome.done{opacity:0;visibility:hidden}
+#welcome img{height:102px;width:auto}
+#welcome p{margin:0;font-family:var(--serif);font-size:20px;color:var(--ink)}
+#welcome .bar{display:block;width:120px;height:2px;background:var(--line);overflow:hidden;position:relative}
+#welcome .bar::after{content:"";position:absolute;inset:0;width:40%;background:var(--gold);animation:slide 1.2s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
+@media(prefers-reduced-motion:reduce){#welcome .bar::after{animation:none;width:100%}}
