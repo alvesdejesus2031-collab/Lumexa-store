@@ -35,6 +35,14 @@
 
 <body>
 
+<noscript><style>#welcome{display:none}</style></noscript>
+
+<div id="welcome" role="status" aria-live="polite">
+  <img src="/logo-header.png" alt="Lumexa" width="147" height="102">
+  <p>Bem-vindo à Lumexa</p>
+  <span class="bar" aria-hidden="true"></span>
+</div>
+
 <header>
 
   <a class="brand" href="/">
@@ -58,7 +66,7 @@
     <div>
 
       <h1>
-        Encontra. Escolhe. Compra.
+        O teu estilo. As tuas escolhas. A tua Lumexa.
       </h1>
 
       <p>
@@ -204,9 +212,30 @@
   Lumexa · Loja online
 </footer>
 
+<script>
+(function () {
+  var welcome = document.getElementById("welcome");
+  var list = document.getElementById("products");
+  function hide() {
+    if (!welcome) return;
+    welcome.classList.add("done");
+    setTimeout(function () { welcome.remove(); welcome = null; }, 600);
+  }
+  // esconde assim que aparecer o primeiro produto na lista
+  if (list) {
+    new MutationObserver(function (m, obs) {
+      if (list.children.length) { obs.disconnect(); hide(); }
+    }).observe(list, { childList: true });
+  }
+  // segurança: nunca fica preso mais de 10 segundos
+  setTimeout(hide, 10000);
+})();
+</script>
+
 <script src="/app.js"></script>
 
 </body>
 
 </html>
+
 
