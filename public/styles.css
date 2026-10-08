@@ -1,73 +1,95 @@
+/* ===== CORES E TIPOGRAFIA (tiradas do logo) ===== */
+:root{
+  --ivory:#F9F8F4;      /* fundo do logo */
+  --paper:#FFFFFF;      /* cartões, campos */
+  --ink:#1B1A1C;        /* preto do texto do logo */
+  --gold:#B08D3C;       /* dourado do relógio */
+  --gold-deep:#7F6428;  /* dourado escuro, para texto legível */
+  --line:#E6E1D6;       /* linhas e bordas suaves */
+  --muted:#6F6B63;      /* texto secundário */
+  --serif:"Libre Baskerville",Georgia,"Times New Roman",serif;
+  --sans:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+
 /* ===== BASE ===== */
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;overflow-x:clip}
-body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:#f7f7f8;color:#111;width:100%;max-width:100%;overflow-x:clip}
+body{margin:0;font-family:var(--sans);background:var(--ivory);color:var(--ink);width:100%;max-width:100%;overflow-x:clip;line-height:1.5}
 main{width:100%;max-width:100%}
+h1,h2,h3{font-family:var(--serif);font-weight:700}
 
-/* CORREÇÃO PRINCIPAL: nenhuma imagem pode ser maior que o ecrã */
+/* nenhuma imagem pode ser maior que o ecrã */
 img{max-width:100%;height:auto;display:block}
 
-/* ===== CABEÇALHO ===== */
-header{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 6%;background:#fff;border-bottom:1px solid #eee;position:sticky;top:0;z-index:5;width:100%}
-.brand{font-weight:900;letter-spacing:2px}
-.brand span{font-weight:400}
+/* teclado: foco sempre visível */
+:focus-visible{outline:2px solid var(--gold-deep);outline-offset:2px}
 
-/* ===== HERO ===== */
-.hero{margin:28px 6%;border-radius:28px;padding:70px 7%;background:#111;color:#fff}
-.hero h1{font-size:clamp(40px,7vw,78px);line-height:.95;max-width:800px;margin:10px 0}
-.hero p{max-width:620px;color:#cfcfcf}
-.eyebrow{letter-spacing:3px!important;font-size:12px!important}
+/* ===== CABEÇALHO ===== */
+header{height:88px;display:flex;align-items:center;justify-content:space-between;padding:0 6%;background:var(--ivory);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;width:100%}
+.brand{display:flex;align-items:center}
+.brand img{height:64px;width:auto}
+
+/* ===== APRESENTAÇÃO ===== */
+.hero{margin:28px 6%;border-radius:14px;padding:70px 7%;background:var(--ink);color:var(--ivory)}
+.hero h1{font-size:clamp(36px,6.5vw,68px);font-weight:400;line-height:1.08;letter-spacing:-.01em;max-width:800px;margin:0 0 18px}
+.hero p{max-width:560px;color:#D9D4C7;font-size:17px;margin:0 0 28px}
+.hero button{background:var(--gold);color:var(--ink);font-weight:700}
+.hero button:hover{background:#C29E4B}
 
 /* ===== PESQUISA ===== */
 .toolbar{display:flex;gap:12px;padding:10px 6%;max-width:1100px;margin:auto}
-.toolbar input,.toolbar select,.cart input,.panel input{padding:14px;border:1px solid #ddd;border-radius:12px;background:#fff;font:inherit;max-width:100%}
+.toolbar input,.toolbar select,.cart input,.panel input{padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;max-width:100%}
 .toolbar input{flex:1;min-width:0}
 .toolbar select{min-width:0}
 
 /* ===== BOTÕES ===== */
-button{border:0;border-radius:12px;padding:13px 18px;background:#111;color:#fff;font:inherit;cursor:pointer}
-.ghost{background:#fff;color:#111;border:1px solid #ddd}
+button{border:0;border-radius:8px;padding:13px 18px;background:var(--ink);color:var(--ivory);font:inherit;cursor:pointer}
+button:hover{background:#38363a}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--ink)}
+.ghost:hover{background:var(--ink);color:var(--ivory)}
 
 /* ===== LISTA DE PRODUTOS ===== */
 .grid{padding:24px 6% 80px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;width:100%}
-/* min-width:0 impede que um item da grelha cresça além da coluna */
 .grid>*{min-width:0;max-width:100%}
-/* qualquer imagem de produto ocupa a largura do cartão */
 .grid img{width:100%;max-width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;display:block}
 
-.card{background:#fff;border:1px solid #eee;border-radius:18px;overflow:hidden}
-.pic{height:230px;background:#e9e9ec;display:flex;align-items:center;justify-content:center;color:#888;overflow:hidden}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.pic{height:230px;background:#EFEBE1;display:flex;align-items:center;justify-content:center;color:var(--muted);overflow:hidden}
 .pic img{width:100%;height:100%;aspect-ratio:auto;object-fit:cover}
 .body{padding:16px}
-.body h3{margin:0 0 6px}
-.price{font-weight:800;margin:12px 0}
+.body h3{margin:0 0 6px;font-size:18px}
+.price{font-weight:700;margin:12px 0;color:var(--gold-deep)}
 .unavailable{opacity:.55}
-.badge{font-size:12px;background:#eee;padding:5px 8px;border-radius:20px}
+.badge{font-size:12px;background:#EFEBE1;color:var(--muted);padding:5px 8px;border-radius:20px}
 .grid select{max-width:100%}
 
 /* ===== CARRINHO ===== */
-.cart{position:fixed;right:20px;bottom:20px;width:min(400px,calc(100% - 40px));background:#fff;border:1px solid #ddd;border-radius:20px;padding:20px;box-shadow:0 20px 60px #0002;z-index:10;display:none}
+.cart{position:fixed;right:20px;bottom:20px;width:min(400px,calc(100% - 40px));background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:0 20px 60px #1B1A1C26;z-index:10;display:none}
 .cart.open{display:block}
 .cartHead{display:flex;justify-content:space-between;align-items:center}
-.cartHead button,.close{background:transparent;color:#111;padding:5px;font-size:24px}
+.cartHead h2{margin:0;font-size:20px}
+.cartHead button,.close{background:transparent;color:var(--ink);padding:5px;font-size:24px}
+.cartHead button:hover,.close:hover{background:transparent;color:var(--gold-deep)}
 .cart input{width:100%;margin:6px 0}
-.cart .total{font-weight:900;margin:15px 0}
-.cartItem{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}
+.cart .total{font-weight:700;margin:15px 0}
+.cartItem{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
 
 /* ===== JANELA DO ADMINISTRADOR ===== */
-.modal{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;z-index:20}
+.modal{position:fixed;inset:0;background:#1B1A1C99;display:flex;align-items:center;justify-content:center;z-index:20}
 .hidden{display:none}
-.panel{background:#fff;padding:28px;border-radius:20px;width:min(420px,92%);position:relative}
+.panel{background:var(--paper);padding:28px;border-radius:14px;width:min(420px,92%);position:relative}
+.panel h2{margin-top:0}
 .panel input,.panel button{width:100%;margin-top:10px}
-.close{position:absolute;right:12px;top:8px}
-.muted{color:#777}
+.close{position:absolute;right:12px;top:8px;width:auto!important;margin-top:0!important}
+.muted{color:var(--muted)}
 
 /* ===== RODAPÉ ===== */
-footer{text-align:center;padding:30px;color:#777}
+footer{text-align:center;padding:30px;color:var(--muted);border-top:1px solid var(--line)}
 
 /* ===== TELEMÓVEL ===== */
 @media(max-width:600px){
+  header{height:80px}
+  .brand img{height:56px}
   .hero{margin:14px;padding:45px 25px}
   .grid{padding-left:4%;padding-right:4%;grid-template-columns:1fr}
 }
-
